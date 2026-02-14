@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-
+import bcrypt from "bcryptjs";
 const participantSchema=new mongoose.Schema({
     fName:{
         type:String,
@@ -46,5 +46,15 @@ const participantSchema=new mongoose.Schema({
 },{timestamps:true});
 
 
+participantSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+participantSchema.methods.comparePassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
 
 export const Participant=mongoose.model('Participant',participantSchema);
