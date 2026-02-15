@@ -1,36 +1,11 @@
-import { useState } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import Dashboard from "./pages/Dashboard";
+import { AuthProvider } from "./context/AuthContext";
+import AppRoutes from "./routes/AppRoutes";
 
 function App() {
-  const [user, setUser] = useState(null);
-
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/login" />} />
-
-      <Route 
-        path="/login" 
-        element={<Login setUser={setUser} />} 
-      />
-
-      <Route 
-        path="/signup" 
-        element={<Signup />} 
-      />
-
-      <Route 
-        path="/dashboard" 
-        element={
-          user ? 
-          <Dashboard user={user} setUser={setUser} /> 
-          : 
-          <Navigate to="/login" />
-        } 
-      />
-    </Routes>
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }
 

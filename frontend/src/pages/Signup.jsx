@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-function Signup({ setPage }) {
+function Signup() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -84,7 +84,7 @@ function Signup({ setPage }) {
         <button type="submit">Signup</button>
       </form>
 
-      <button onClick={() => setPage("login")}>
+      <button onClick={() => navigate("/login")}>
         Already have an account?
       </button>
     </div>

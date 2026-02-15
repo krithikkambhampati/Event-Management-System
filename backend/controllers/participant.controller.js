@@ -58,39 +58,7 @@ export const handleSignupParticipant = async (req, res) => {
 };  
 
 
-export const handleLoginParticipant = async (req, res) => {
-  try {
-    const { email, password } = req.body;
 
-    const participant = await Participant.findOne({ email });
-    if (!participant) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
 
-    const isMatch = await participant.comparePassword(password);
 
-    if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-    const token = generateToken(participant._id, "PARTICIPANT");
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "strict",
-      maxAge: 24 * 60 * 60 * 1000
-    });
-    
-    res.status(200).json({
-      message: "Login successful",
-      user: {
-        _id: participant._id,
-        fName: participant.fName,
-        email: participant.email
-      }
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
