@@ -1,6 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function Signup({ setPage }) {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     fName: "",
     lName: "",
@@ -30,8 +33,7 @@ function Signup({ setPage }) {
     const data = await res.json();
 
     if (res.ok) {
-      alert("Signup successful");
-      setPage("login");
+      navigate("/login");
     } else {
       alert(data.message);
     }
@@ -47,6 +49,31 @@ function Signup({ setPage }) {
         <input name="lName" placeholder="Last Name" onChange={handleChange} required />
         <br />
         <input name="collegeName" placeholder="College Name" onChange={handleChange} required />
+        <div>
+          <label>
+            <input
+              type="radio"
+              name="participantType"
+              value="IIIT"
+              checked={formData.participantType === "IIIT"}
+              onChange={handleChange}
+            />
+            IIIT
+          </label>
+
+          <label>
+            <input
+              type="radio"
+              name="participantType"
+              value="NON_IIIT"
+              checked={formData.participantType === "NON_IIIT"}
+              onChange={handleChange}
+            />
+              Non-IIIT
+            </label>
+        </div>
+        <br />
+
         <br />
         <input name="contactNumber" placeholder="Contact Number" onChange={handleChange} required />
         <br />

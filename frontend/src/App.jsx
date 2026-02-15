@@ -1,21 +1,37 @@
 import { useState } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 
 function App() {
-  const [page, setPage] = useState("login");
   const [user, setUser] = useState(null);
 
-  if (user) {
-    return <Dashboard user={user} setUser={setUser} />;
-  }
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" />} />
 
-  if (page === "login") {
-    return <Login setPage={setPage} setUser={setUser} />;
-  }
+      <Route 
+        path="/login" 
+        element={<Login setUser={setUser} />} 
+      />
 
-  return <Signup setPage={setPage} />;
+      <Route 
+        path="/signup" 
+        element={<Signup />} 
+      />
+
+      <Route 
+        path="/dashboard" 
+        element={
+          user ? 
+          <Dashboard user={user} setUser={setUser} /> 
+          : 
+          <Navigate to="/login" />
+        } 
+      />
+    </Routes>
+  );
 }
 
 export default App;

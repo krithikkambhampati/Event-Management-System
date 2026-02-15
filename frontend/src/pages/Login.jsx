@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-function Login({ setPage, setUser }) {
+function Login({  setUser }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -16,11 +19,13 @@ function Login({ setPage, setUser }) {
     const data = await res.json();
 
     if (res.ok && data.user) {
-    setUser(data.user.fName);
-    setPage("dashboard")
-  } else {
+      setUser(data.user.fName);
+      navigate("/dashboard");
+
+    }
+    else{
     alert(data.message || "Login failed");
-  }
+    }
 
   };
 
@@ -48,7 +53,7 @@ function Login({ setPage, setUser }) {
         <button type="submit">Login</button>
       </form>
 
-      <button onClick={() => setPage("signup")}>
+      <button onClick={() => navigate("/signup")}>
         Create account
       </button>
     </div>
