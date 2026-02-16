@@ -10,6 +10,7 @@ import OrganizerDashboard from "../pages/OrganizerDashboard";
 import CreateOrganizer from "../pages/CreateOrganizer";
 import OrganizerList from "../pages/OrganizerList";
 import CreateEvent from "../pages/CreateEvent";
+import EventDetails from "../pages/EventDetails";
 
 function AppRoutes() {
 	const { user, loading } = useAuth();
@@ -107,6 +108,26 @@ function AppRoutes() {
 					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
 						<MainLayout>
 							<CreateEvent />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/organizer/events/:eventId"
+				element={
+					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
+						<MainLayout>
+							<EventDetails />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/events/:eventId"
+				element={
+					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
+						<MainLayout>
+							<EventDetails />
 						</MainLayout>
 					</ProtectedRoute>
 				}

@@ -79,13 +79,20 @@ export const handleGetOrganizerEvents = async (req, res) => {
   try {
     const { organizerId } = req.params;
 
+    console.log("DEBUG: organizerId from params:", organizerId);
+
     if (!mongoose.Types.ObjectId.isValid(organizerId)) {
+      console.log("DEBUG: Invalid ObjectId format");
       return res.status(400).json({ message: "Invalid organizer ID format" });
     }
 
+    console.log("DEBUG: Fetching events for organizer:", organizerId);
+
     const events = await Event.find({ organizer: organizerId })
-      .populate("organizer", "organizerName -password")
+      .populate("organizer", "organizerName organizerEmail")
       .sort({ createdAt: -1 });
+
+    console.log("DEBUG: Found events:", events.length);
 
     res.status(200).json({
       message: "Events fetched successfully",
@@ -94,8 +101,13 @@ export const handleGetOrganizerEvents = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("handleGetOrganizerEvents error:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("DEBUG: handleGetOrganizerEvents error:", error);
+    console.error("DEBUG: Error stack:", error.stack);
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
@@ -108,7 +120,7 @@ export const handleGetSingleEvent = async (req, res) => {
     }
 
     const event = await Event.findById(eventId)
-      .populate("organizer", "organizerName category contactEmail -password");
+      .populate("organizer", "organizerName category contactEmail");
 
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
