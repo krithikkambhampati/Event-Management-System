@@ -9,6 +9,7 @@ import AdminDashboard from "../pages/AdminDashboard";
 import OrganizerDashboard from "../pages/OrganizerDashboard";
 import CreateOrganizer from "../pages/CreateOrganizer";
 import OrganizerList from "../pages/OrganizerList";
+import CreateEvent from "../pages/CreateEvent";
 
 function AppRoutes() {
 	const { user, loading } = useAuth();
@@ -96,6 +97,16 @@ function AppRoutes() {
 					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
 						<MainLayout>
 							<OrganizerDashboard />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/organizer/create-event"
+				element={
+					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
+						<MainLayout>
+							<CreateEvent />
 						</MainLayout>
 					</ProtectedRoute>
 				}

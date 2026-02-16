@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import participantRouter from "./routes/participant.routes.js";
 import adminRouter from "./routes/admin.routes.js";
 import authRouter from "./routes/auth.routes.js";
+import eventRouter from "./routes/event.routes.js";
 
 
 
@@ -25,6 +26,7 @@ const PORT=8000
 app.use("/api/participants", participantRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/events", eventRouter);
 await mongoose.connect("mongodb://127.0.0.1:27017/eventManagementSystem")
 .then(()=>console.log("MONGODB connected"))
 .catch(()=>console.log("Error occured while connecting to MONGODB"))

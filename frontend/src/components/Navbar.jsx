@@ -41,6 +41,17 @@ function Navbar() {
         </>
       )}
 
+      {user.role === "ORGANIZER" && (
+        <>
+          <Link to="/organizer" style={{ marginRight: "15px" }}>
+            Dashboard
+          </Link>
+          <Link to="/organizer/create-event" style={{ marginRight: "15px" }}>
+            Create Event
+          </Link>
+        </>
+      )}
+
       <span style={{ float: "right" }}>
         {user.fName || user.email}
         <button onClick={handleLogout} style={{ marginLeft: "10px" }}>

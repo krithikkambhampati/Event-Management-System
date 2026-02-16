@@ -63,13 +63,26 @@ export const handleLogin = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000
     });
 
+    // Build user response based on role
+    const userResponse = {
+      _id: user._id,
+      email: user.email,
+      role
+    };
+
+    // Add role-specific fields
+    if (role === "PARTICIPANT") {
+      userResponse.fName = user.fName;
+      userResponse.lName = user.lName;
+    } else if (role === "ORGANIZER") {
+      userResponse.organizerName = user.organizerName;
+    } else if (role === "ADMIN") {
+      userResponse.name = user.name;
+    }
+
     res.status(200).json({
       message: "Login successful",
-      user: {
-        _id: user._id,
-        email: user.email,
-        role
-      }
+      user: userResponse
     });
 
   } catch (error) {

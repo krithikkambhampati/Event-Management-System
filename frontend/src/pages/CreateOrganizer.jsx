@@ -11,6 +11,8 @@ function CreateOrganizer() {
   });
 
   const [credentials, setCredentials] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -21,6 +23,8 @@ function CreateOrganizer() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError("");
 
     const res = await fetch(
       "http://localhost:8000/api/admin/create-organizer",
@@ -36,9 +40,22 @@ function CreateOrganizer() {
 
     if (res.ok) {
       setCredentials(data.credentials);
+      // Reset form
+      setFormData({
+        organizerName: "",
+        category: "",
+        description: "",
+        contactEmail: "",
+        contactNumber: ""
+      });
     } else {
-      alert(data.message);
+      setError(data.message || "Failed to create organizer");
     }
+    setLoading(false);
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
   };
 
   return (
@@ -46,11 +63,14 @@ function CreateOrganizer() {
       <h3>Create Organizer</h3>
       <Link to="/admin">Back to Admin Dashboard</Link>
 
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
       <form onSubmit={handleSubmit}>
         <input
           name="organizerName"
           placeholder="Organizer Name"
           onChange={handleChange}
+          value={formData.organizerName}
           required
         />
         <br />
@@ -58,6 +78,7 @@ function CreateOrganizer() {
         <select
           name="category"
           onChange={handleChange}
+          value={formData.category}
           required
         >
           <option value="">Select Category</option>
@@ -72,6 +93,7 @@ function CreateOrganizer() {
           name="description"
           placeholder="Description"
           onChange={handleChange}
+          value={formData.description}
           required
         />
         <br />
@@ -80,6 +102,7 @@ function CreateOrganizer() {
           name="contactEmail"
           placeholder="Contact Email"
           onChange={handleChange}
+          value={formData.contactEmail}
           required
         />
         <br />
@@ -88,18 +111,26 @@ function CreateOrganizer() {
           name="contactNumber"
           placeholder="Contact Number"
           onChange={handleChange}
+          value={formData.contactNumber}
           required
         />
         <br />
 
-        <button type="submit">Create</button>
+        <button type="submit" disabled={loading}>
+          {loading ? "Creating..." : "Create"}
+        </button>
       </form>
 
       {credentials && (
-        <div style={{ marginTop: "20px" }}>
-          <h4>Generated Credentials</h4>
-          <p>Login Email: {credentials.email}</p>
-          <p>Password: {credentials.password}</p>
+        <div style={{ marginTop: "20px", padding: "15px", border: "2px solid green", borderRadius: "5px", backgroundColor: "#f0fff4" }}>
+          <h4>Organizer Created Successfully!</h4>
+          <p><strong>Login Email:</strong> {credentials.email}</p>
+          <button onClick={() => copyToClipboard(credentials.email)}>Copy Email</button>
+          <br /><br />
+          <p><strong>Password:</strong> {credentials.password}</p>
+          <button onClick={() => copyToClipboard(credentials.password)}>Copy Password</button>
+          <br /><br />
+          <p style={{ color: "red", fontSize: "12px" }}>Save these credentials! They can only be reset from the Organizers list page.</p>
         </div>
       )}
     </div>
