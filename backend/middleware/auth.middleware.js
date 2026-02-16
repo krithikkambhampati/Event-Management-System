@@ -12,6 +12,10 @@ export const verifyToken = (req, res, next) => {
     req.user = decoded;  
     next();
   } catch (error) {
+    res.clearCookie("token", {
+      httpOnly: true,
+      sameSite: "lax"
+    });
     return res.status(401).json({ message: "Invalid token" });
   }
 };

@@ -1,6 +1,8 @@
 import { Participant } from "../models/participant.model.js";
 import { Admin } from "../models/admin.model.js";
 import { generateToken } from "../utils/generateToken.js";
+import { Organizer } from "../models/organizer.model.js";
+import mongoose from "mongoose";
 
 export const handleLogin = async (req, res) => {
   try {
@@ -18,6 +20,23 @@ export const handleLogin = async (req, res) => {
 
       user = admin;
       role = "ADMIN";
+    }
+    if (!user) {
+      const organizer = await Organizer.findOne({email });
+
+      if (organizer) {
+        if (!organizer.isActive) {
+          return res.status(403).json({ message: "Account disabled" });
+        }
+
+        const isMatch = await organizer.comparePassword(password);
+        if (!isMatch) {
+          return res.status(400).json({ message: "Invalid credentials" });
+        }
+
+        user = organizer;
+        role = "ORGANIZER";
+      }
     }
 
     if (!user) {
@@ -60,15 +79,31 @@ export const handleLogin = async (req, res) => {
 
 export const handleGetMe = async (req, res) => {
   try {
-    let user;
-
-    if (req.user.role === "PARTICIPANT") {
-      user = await Participant.findById(req.user.id).select("-password");
+    if (!req.user?.id || !req.user?.role) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (req.user.role === "ADMIN") {
-      user = await Admin.findById(req.user.id).select("-password");
+    const roleToModel = {
+      PARTICIPANT: Participant,
+      ADMIN: Admin,
+      ORGANIZER: Organizer
+    };
+
+    const Model = roleToModel[req.user.role];
+
+    if (!Model) {
+      return res.status(401).json({ message: "Invalid role in token" });
     }
+
+    if (!mongoose.Types.ObjectId.isValid(req.user.id)) {
+      res.clearCookie("token", {
+        httpOnly: true,
+        sameSite: "lax"
+      });
+      return res.status(401).json({ message: "Invalid token" });
+    }
+
+    const user = await Model.findById(req.user.id).select("-password");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -76,7 +111,7 @@ export const handleGetMe = async (req, res) => {
 
     res.status(200).json({
       user: {
-        ...user._doc,
+        ...user.toObject(),
         role: req.user.role
       }
     });
