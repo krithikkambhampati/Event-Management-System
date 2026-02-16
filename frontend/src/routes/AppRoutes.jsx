@@ -8,6 +8,7 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import AdminDashboard from "../pages/AdminDashboard";
 import OrganizerDashboard from "../pages/OrganizerDashboard";
 import CreateOrganizer from "../pages/CreateOrganizer";
+import OrganizerList from "../pages/OrganizerList";
 
 function AppRoutes() {
 	const { user, loading } = useAuth();
@@ -75,6 +76,16 @@ function AppRoutes() {
 					<ProtectedRoute allowedRoles={["ADMIN"]}>
 						<MainLayout>
 							<CreateOrganizer />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/admin/organizers"
+				element={
+					<ProtectedRoute allowedRoles={["ADMIN"]}>
+						<MainLayout>
+							<OrganizerList />
 						</MainLayout>
 					</ProtectedRoute>
 				}

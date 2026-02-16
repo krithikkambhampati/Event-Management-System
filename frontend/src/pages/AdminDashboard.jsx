@@ -9,6 +9,10 @@ function AdminDashboard() {
       <Link to="/admin/create-organizer">
         <button>Create Organizer</button>
       </Link>
+
+      <Link to="/admin/organizers">
+        <button style={{ marginLeft: "12px" }}>View Organizers</button>
+      </Link>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Organizer } from "../models/organizer.model.js";
 import crypto from "crypto";
+import mongoose from "mongoose";
 
 const buildBaseLoginHandle = (organizerName) => {
   const normalized = String(organizerName || "")
@@ -95,5 +96,104 @@ export const createOrganizer = async (req, res) => {
     console.error("createOrganizer error:", error);
 
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const listOrganizers = async (req, res) => {
+  try {
+    const organizers = await Organizer.find({})
+      .select("organizerName category contactEmail email contactNumber isActive createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({ organizers });
+  } catch (error) {
+    console.error("listOrganizers error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateOrganizerStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid organizer id" });
+    }
+
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({ message: "isActive must be boolean" });
+    }
+
+    const organizer = await Organizer.findByIdAndUpdate(
+      id,
+      { isActive },
+      { new: true }
+    ).select("_id organizerName isActive");
+
+    if (!organizer) {
+      return res.status(404).json({ message: "Organizer not found" });
+    }
+
+    return res.status(200).json({
+      message: isActive ? "Organizer enabled" : "Organizer disabled",
+      organizer
+    });
+  } catch (error) {
+    console.error("updateOrganizerStatus error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteOrganizer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid organizer id" });
+    }
+
+    const organizer = await Organizer.findByIdAndDelete(id).select("_id organizerName");
+
+    if (!organizer) {
+      return res.status(404).json({ message: "Organizer not found" });
+    }
+
+    return res.status(200).json({ message: "Organizer deleted successfully" });
+  } catch (error) {
+    console.error("deleteOrganizer error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const resetOrganizerPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid organizer id" });
+    }
+
+    const organizer = await Organizer.findById(id);
+
+    if (!organizer) {
+      return res.status(404).json({ message: "Organizer not found" });
+    }
+
+    const generatedPassword = crypto.randomBytes(6).toString("hex");
+    organizer.password = generatedPassword;
+    await organizer.save();
+
+    return res.status(200).json({
+      message: "Organizer password reset successfully",
+      credentials: {
+        email: organizer.email,
+        password: generatedPassword
+      }
+    });
+  } catch (error) {
+    console.error("resetOrganizerPassword error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
