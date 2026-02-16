@@ -25,12 +25,15 @@ function Login() {
       setUser(data.user);
       if (data.user.role === "ADMIN") {
         navigate("/admin");
+      } else if (data.user.role === "ORGANIZER") {
+        navigate("/organizer");
       } else {
         navigate("/dashboard");
       }
+
     }
-    else{
-    alert(data.message || "Login failed");
+    else {
+      alert(data.message || "Login failed");
     }
 
   };

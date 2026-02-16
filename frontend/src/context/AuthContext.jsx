@@ -17,9 +17,11 @@ export const AuthProvider = ({ children }) => {
         if (res.ok) {
           const data = await res.json();
           setUser(data.user);
+        } else {
+          setUser(null); // changed: clear stale user when /auth/me is unauthorized
         }
-      } catch (err) {
-        console.log(err);
+      } catch{
+        setUser(null); // changed: fail safely if backend is temporarily unreachable
       } finally {
         setLoading(false);
       }

@@ -6,6 +6,8 @@ import Dashboard from "../pages/Dashboard";
 import MainLayout from "../layout/MainLayout";
 import ProtectedRoute from "../components/ProtectedRoute";
 import AdminDashboard from "../pages/AdminDashboard";
+import OrganizerDashboard from "../pages/OrganizerDashboard";
+import CreateOrganizer from "../pages/CreateOrganizer";
 
 function AppRoutes() {
 	const { user, loading } = useAuth();
@@ -24,6 +26,8 @@ function AppRoutes() {
 					user ? (
 						user.role === "ADMIN" ? (
 							<Navigate to="/admin" />
+						) : user.role === "ORGANIZER" ? ( 
+							<Navigate to="/organizer" /> 
 						) : (
 							<Navigate to="/dashboard" />
 						)
@@ -65,6 +69,27 @@ function AppRoutes() {
 					</ProtectedRoute>
 				}
 			/>
+			<Route
+				path="/admin/create-organizer"
+				element={
+					<ProtectedRoute allowedRoles={["ADMIN"]}>
+						<MainLayout>
+							<CreateOrganizer />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/organizer"
+				element={
+					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
+						<MainLayout>
+							<OrganizerDashboard />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+
 
 		</Routes>
 	);
