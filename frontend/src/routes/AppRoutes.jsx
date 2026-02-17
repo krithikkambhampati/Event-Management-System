@@ -11,6 +11,9 @@ import CreateOrganizer from "../pages/CreateOrganizer";
 import OrganizerList from "../pages/OrganizerList";
 import CreateEvent from "../pages/CreateEvent";
 import EventDetails from "../pages/EventDetails";
+import ParticipationHistory from "../pages/ParticipationHistory";
+import BrowseEvents from "../pages/BrowseEvents";
+import BrowseOrganizers from "../pages/BrowseOrganizers";
 
 function AppRoutes() {
 	const { user, loading } = useAuth();
@@ -58,6 +61,26 @@ function AppRoutes() {
 					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
 						<MainLayout>
 							<Dashboard />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/browse-events"
+				element={
+					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
+						<MainLayout>
+							<BrowseEvents />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/browse-organizers"
+				element={
+					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
+						<MainLayout>
+							<BrowseOrganizers />
 						</MainLayout>
 					</ProtectedRoute>
 				}
@@ -128,6 +151,16 @@ function AppRoutes() {
 					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
 						<MainLayout>
 							<EventDetails />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/participation-history"
+				element={
+					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
+						<MainLayout>
+							<ParticipationHistory />
 						</MainLayout>
 					</ProtectedRoute>
 				}

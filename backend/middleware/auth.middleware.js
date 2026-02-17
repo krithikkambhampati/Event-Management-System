@@ -59,3 +59,24 @@ export const authorizeRoles = (...allowedRoles) => {
     next();
   };
 };
+
+export const requireParticipant = (req, res, next) => {
+  if (!req.user || req.user.role !== "PARTICIPANT") {
+    return res.status(403).json({ message: "Forbidden: Only participants can access this" });
+  }
+  next();
+};
+
+export const requireOrganizer = (req, res, next) => {
+  if (!req.user || req.user.role !== "ORGANIZER") {
+    return res.status(403).json({ message: "Forbidden: Only organizers can access this" });
+  }
+  next();
+};
+
+export const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "ADMIN") {
+    return res.status(403).json({ message: "Forbidden: Only admins can access this" });
+  }
+  next();
+};

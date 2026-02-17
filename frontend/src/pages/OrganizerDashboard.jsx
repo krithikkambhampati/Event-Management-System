@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
+import '../styles/Dashboard.css';
 
 function OrganizerDashboard() {
   const { user } = useAuth();
@@ -9,6 +10,7 @@ function OrganizerDashboard() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [actionLoading, setActionLoading] = useState("");
 
   const fetchEvents = async () => {
@@ -45,12 +47,9 @@ function OrganizerDashboard() {
   }, [user?._id]);
 
   const handlePublishEvent = async (eventId, eventName) => {
-    if (!window.confirm(`Publish event "${eventName}"? It will be visible to participants.`)) {
-      return;
-    }
-
     setActionLoading(eventId);
     setError("");
+    setSuccess("");
 
     try {
       const res = await fetch(
@@ -72,29 +71,30 @@ function OrganizerDashboard() {
           event._id === eventId ? { ...event, status: "PUBLISHED" } : event
         )
       );
+      setSuccess(`Event "${eventName}" published successfully!`);
+      setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       setError(err.message || "Failed to publish event");
+      setTimeout(() => setError(""), 5000);
     } finally {
       setActionLoading("");
     }
   };
 
   const handleDeleteEvent = async (eventId, eventName) => {
-    if (!window.confirm(`Delete event "${eventName}"? This cannot be undone.`)) {
-      return;
-    }
-
     setActionLoading(eventId);
     setError("");
+    setSuccess("");
 
     try {
-      // For now, we'll just remove from UI (no delete endpoint yet)
-      // Later: implement DELETE endpoint
       setEvents(prevEvents =>
         prevEvents.filter(event => event._id !== eventId)
       );
+      setSuccess(`Event "${eventName}" deleted successfully!`);
+      setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       setError(err.message || "Failed to delete event");
+      setTimeout(() => setError(""), 5000);
     } finally {
       setActionLoading("");
     }
@@ -113,90 +113,119 @@ function OrganizerDashboard() {
   };
 
   return (
-    <div>
-      <h2>Welcome, {user?.organizerName || "Organizer"}!</h2>
+    <div className="dashboard-container">
+      <div className="dashboard-header">
+        <h1>Welcome, {user?.organizerName || "Organizer"}!</h1>
+        <p>Manage your events and track their performance</p>
+      </div>
 
       {error && (
-        <div>
-          <strong>Error:</strong> {error}
+        <div className="alert alert-error">
+          {error}
         </div>
       )}
 
-      <div>
-        <div>
-          <strong>Total Events:</strong> {stats.total}
+      {success && (
+        <div className="alert alert-success">
+          {success}
         </div>
-        <div>
-          <strong>Draft:</strong> {stats.draft}
+      )}
+
+      <div className="dashboard-stats">
+        <div className="stat-box">
+          <div className="stat-box-number">{stats.total}</div>
+          <div className="stat-box-label">Total Events</div>
         </div>
-        <div>
-          <strong>Published:</strong> {stats.published}
+        <div className="stat-box">
+          <div className="stat-box-number">{stats.draft}</div>
+          <div className="stat-box-label">Draft</div>
         </div>
-        <div>
-          <strong>Ongoing:</strong> {stats.ongoing}
+        <div className="stat-box">
+          <div className="stat-box-number">{stats.published}</div>
+          <div className="stat-box-label">Published</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-box-number">{stats.ongoing}</div>
+          <div className="stat-box-label">Ongoing</div>
         </div>
       </div>
 
-      <div>
-        <Link to="/organizer/create-event">
-          <button>+ Create New Event</button>
+      <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-xl)' }}>
+        <Link to="/organizer/create-event" style={{ textDecoration: 'none' }}>
+          <button className="btn-primary">+ Create New Event</button>
         </Link>
-        <button onClick={fetchEvents}>Refresh</button>
+        <button className="btn-secondary" onClick={fetchEvents}>Refresh</button>
       </div>
 
-      <h3>Your Events</h3>
+      <div className="dashboard-header" style={{ marginBottom: 'var(--spacing-lg)' }}>
+        <h3>Your Events</h3>
+      </div>
 
-      {loading && <p>Loading events...</p>}
+      {loading && (
+        <div className="empty-state">
+          <p>Loading events...</p>
+        </div>
+      )}
 
       {!loading && events.length === 0 && (
-        <p>
-          No events yet. <Link to="/organizer/create-event">Create your first event!</Link>
-        </p>
+        <div className="empty-state">
+          <div className="empty-state-title">No Events Yet</div>
+          <p className="empty-state-text">
+            Get started by creating your first event!
+          </p>
+          <Link to="/organizer/create-event" style={{ textDecoration: 'none' }}>
+            <button className="empty-state-button">Create Event</button>
+          </Link>
+        </div>
       )}
 
       {!loading && events.length > 0 && (
-        <div>
+        <div className="dashboard-grid">
           {events.map(event => (
-            <div key={event._id}>
-              <div>
-                <div>
-                  <h4>{event.eventName}</h4>
-                  <p>
-                    Type: <strong>{event.eventType === "NORMAL" ? "Normal Event" : "Merchandise"}</strong>
-                  </p>
-                </div>
-                <div>
-                  [{event.status}]
-                </div>
+            <div key={event._id} className="dashboard-card">
+              <div className="dashboard-card-header">
+                <div className="dashboard-card-title">{event.eventName}</div>
+                <span className={`dashboard-card-badge status-${event.status.toLowerCase()}`}>
+                  {event.status}
+                </span>
               </div>
 
-              <div>
-                <p>
-                  <strong>Description:</strong> {event.description.substring(0, 100)}...
-                </p>
-                <p>
-                  <strong>Start:</strong> {formatDate(event.startDate)}
-                </p>
-                <p>
-                  <strong>End:</strong> {formatDate(event.endDate)}
-                </p>
-                <p>
-                  <strong>Registration Deadline:</strong> {formatDate(event.registrationDeadline)}
-                </p>
+              <div className="dashboard-card-body">
+                <div className="dashboard-card-item">
+                  <span className="dashboard-card-label">Type</span>
+                  <span className="dashboard-card-value">
+                    {event.eventType === "NORMAL" ? "Normal Event" : "Merchandise"}
+                  </span>
+                </div>
+                <div className="dashboard-card-item">
+                  <span className="dashboard-card-label">Start Date</span>
+                  <span className="dashboard-card-value">{formatDate(event.startDate)}</span>
+                </div>
+                <div className="dashboard-card-item">
+                  <span className="dashboard-card-label">End Date</span>
+                  <span className="dashboard-card-value">{formatDate(event.endDate)}</span>
+                </div>
+                <div className="dashboard-card-item">
+                  <span className="dashboard-card-label">Registration Deadline</span>
+                  <span className="dashboard-card-value">{formatDate(event.registrationDeadline)}</span>
+                </div>
                 {event.registrationLimit && (
-                  <p>
-                    <strong>Capacity:</strong> {event.registrationLimit} participants
-                  </p>
+                  <div className="dashboard-card-item">
+                    <span className="dashboard-card-label">Capacity</span>
+                    <span className="dashboard-card-value">{event.registrationLimit} participants</span>
+                  </div>
                 )}
                 {event.registrationFee > 0 && (
-                  <p>
-                    <strong>Fee:</strong> ₹{event.registrationFee}
-                  </p>
+                  <div className="dashboard-card-item">
+                    <span className="dashboard-card-label">Fee</span>
+                    <span className="dashboard-card-value">₹{event.registrationFee}</span>
+                  </div>
                 )}
               </div>
 
-              <div>
+              <div className="dashboard-card-footer">
                 <button
+                  className="btn-primary"
                   onClick={() => navigate(`/organizer/events/${event._id}`)}
                   disabled={actionLoading === event._id}
                 >
@@ -206,12 +235,14 @@ function OrganizerDashboard() {
                 {event.status === "DRAFT" && (
                   <>
                     <button
+                      className="btn-success"
                       onClick={() => handlePublishEvent(event._id, event.eventName)}
                       disabled={actionLoading === event._id}
                     >
                       {actionLoading === event._id ? "Publishing..." : "Publish"}
                     </button>
                     <button
+                      className="btn-danger"
                       onClick={() => handleDeleteEvent(event._id, event.eventName)}
                       disabled={actionLoading === event._id}
                     >

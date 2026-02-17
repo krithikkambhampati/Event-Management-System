@@ -3,6 +3,7 @@ import {
   handleCreateEvent,
   handleGetOrganizerEvents,
   handleGetSingleEvent,
+  handleGetPublishedEvents,
   handleUpdateEvent,
   handlePublishEvent
 } from "../controllers/event.controller.js";
@@ -49,6 +50,11 @@ router.post(
 router.get(
   "/:eventId",
   handleGetSingleEvent
+);
+
+router.get(
+  "/",
+  handleGetPublishedEvents
 );
 
 export default router;

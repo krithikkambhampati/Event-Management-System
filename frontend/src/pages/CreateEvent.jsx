@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import '../styles/CreateEvent.css';
 
 function CreateEvent() {
   const navigate = useNavigate();
@@ -95,7 +96,6 @@ function CreateEvent() {
         .map(tag => tag.trim())
         .filter(tag => tag.length > 0);
 
-      // Combine date and time
       const registrationDeadline = formData.registrationDeadline 
         ? `${formData.registrationDeadline}T${formData.registrationDeadlineTime}`
         : "";
@@ -166,252 +166,231 @@ function CreateEvent() {
   };
 
   return (
-    <div>
-      <h2>Create New Event</h2>
+    <div className="create-container">
+      <div className="create-header">
+        <h1>Create New Event</h1>
+        <p>Fill in the details to create a new event as a draft</p>
+      </div>
 
       {error && (
-        <div style={{ color: "red", marginBottom: "15px", padding: "10px", border: "1px solid red" }}>
+        <div className="form-alert form-alert-error">
           {error}
         </div>
       )}
 
-      <form onSubmit={handleCreateEvent}>
-        <div style={{ marginBottom: "15px" }}>
-          <label>Event Name *</label>
-          <br />
-          <input
-            type="text"
-            name="eventName"
-            placeholder="e.g., Tech Workshop"
-            value={formData.eventName}
-            onChange={handleChange}
-            style={{ width: "100%", padding: "8px" }}
-          />
-        </div>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Description *</label>
-          <br />
-          <textarea
-            name="description"
-            placeholder="Describe your event..."
-            value={formData.description}
-            onChange={handleChange}
-            rows="4"
-            style={{ width: "100%", padding: "8px" }}
-          />
-        </div>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Event Type *</label>
-          <br />
-          <select
-            name="eventType"
-            value={formData.eventType}
-            onChange={handleChange}
-            style={{ padding: "8px", width: "100%" }}
-          >
-            <option value="NORMAL">Normal Event</option>
-            <option value="MERCH">Merchandise</option>
-          </select>
-        </div>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Eligibility *</label>
-          <br />
-          <select
-            name="eligibility"
-            value={formData.eligibility}
-            onChange={handleChange}
-            style={{ padding: "8px", width: "100%" }}
-          >
-            <option value="BOTH">Both IIIT & Non-IIIT</option>
-            <option value="IIIT">IIIT Only</option>
-            <option value="NON_IIIT">Non-IIIT Only</option>
-          </select>
-        </div>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Registration Deadline *</label>
-          <br />
-          <div style={{ display: "flex", gap: "10px" }}>
-            <div style={{ flex: 1 }}>
+      <form onSubmit={handleCreateEvent} className="create-form">
+        <div className="form-section">
+          <div className="form-section-title">Basic Information</div>
+          
+          <div className="form-group form-row full">
+            <label>
+              Event Name *
               <input
-                type="date"
-                name="registrationDeadline"
-                value={formData.registrationDeadline}
+                type="text"
+                name="eventName"
+                placeholder="e.g., Tech Workshop"
+                value={formData.eventName}
                 onChange={handleChange}
-                min={new Date().toISOString().split('T')[0]}
-                style={{ padding: "8px", width: "100%" }}
               />
+            </label>
+          </div>
+
+          <div className="form-group form-row full">
+            <label>
+              Description *
+              <textarea
+                name="description"
+                placeholder="Describe your event in detail..."
+                value={formData.description}
+                onChange={handleChange}
+              />
+            </label>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>
+                Event Type *
+                <select
+                  name="eventType"
+                  value={formData.eventType}
+                  onChange={handleChange}
+                >
+                  <option value="NORMAL">Normal Event</option>
+                  <option value="MERCH">Merchandise Event</option>
+                </select>
+              </label>
             </div>
-            <div style={{ flex: 1 }}>
-              <input
-                type="time"
-                name="registrationDeadlineTime"
-                value={formData.registrationDeadlineTime}
-                onChange={handleChange}
-                style={{ padding: "8px", width: "100%" }}
-              />
+
+            <div className="form-group">
+              <label>
+                Eligibility *
+                <select
+                  name="eligibility"
+                  value={formData.eligibility}
+                  onChange={handleChange}
+                >
+                  <option value="BOTH">Both IIIT & Non-IIIT</option>
+                  <option value="IIIT">IIIT Only</option>
+                  <option value="NON_IIIT">Non-IIIT Only</option>
+                </select>
+              </label>
             </div>
           </div>
         </div>
 
-        <div style={{ marginBottom: "15px" }}>
-          <label>Start Date & Time *</label>
-          <br />
-          <div style={{ display: "flex", gap: "10px" }}>
-            <div style={{ flex: 1 }}>
-              <input
-                type="date"
-                name="startDate"
-                value={formData.startDate}
-                onChange={handleChange}
-                min={new Date().toISOString().split('T')[0]}
-                style={{ padding: "8px", width: "100%" }}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <input
-                type="time"
-                name="startTime"
-                value={formData.startTime}
-                onChange={handleChange}
-                style={{ padding: "8px", width: "100%" }}
-              />
-            </div>
+        <div className="form-section">
+          <div className="form-section-title">Event Schedule</div>
+
+          <div className="form-group form-row full">
+            <label>
+              Registration Deadline *
+              <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                <input
+                  type="date"
+                  name="registrationDeadline"
+                  value={formData.registrationDeadline}
+                  onChange={handleChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="time"
+                  name="registrationDeadlineTime"
+                  value={formData.registrationDeadlineTime}
+                  onChange={handleChange}
+                  style={{ flex: 1 }}
+                />
+              </div>
+            </label>
+          </div>
+
+          <div className="form-group form-row full">
+            <label>
+              Start Date & Time *
+              <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                <input
+                  type="date"
+                  name="startDate"
+                  value={formData.startDate}
+                  onChange={handleChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="time"
+                  name="startTime"
+                  value={formData.startTime}
+                  onChange={handleChange}
+                  style={{ flex: 1 }}
+                />
+              </div>
+            </label>
+          </div>
+
+          <div className="form-group form-row full">
+            <label>
+              End Date & Time *
+              <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                <input
+                  type="date"
+                  name="endDate"
+                  value={formData.endDate}
+                  onChange={handleChange}
+                  min={new Date().toISOString().split('T')[0]}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="time"
+                  name="endTime"
+                  value={formData.endTime}
+                  onChange={handleChange}
+                  style={{ flex: 1 }}
+                />
+              </div>
+            </label>
           </div>
         </div>
 
-        <div style={{ marginBottom: "15px" }}>
-          <label>End Date & Time *</label>
-          <br />
-          <div style={{ display: "flex", gap: "10px" }}>
-            <div style={{ flex: 1 }}>
-              <input
-                type="date"
-                name="endDate"
-                value={formData.endDate}
-                onChange={handleChange}
-                min={new Date().toISOString().split('T')[0]}
-                style={{ padding: "8px", width: "100%" }}
-              />
+        <div className="form-section">
+          <div className="form-section-title">Registration Details</div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>
+                Registration Limit
+                <input
+                  type="number"
+                  name="registrationLimit"
+                  placeholder="Leave empty for unlimited"
+                  value={formData.registrationLimit}
+                  onChange={handleChange}
+                />
+              </label>
+              <p className="form-help-text">Maximum number of participants allowed</p>
             </div>
-            <div style={{ flex: 1 }}>
-              <input
-                type="time"
-                name="endTime"
-                value={formData.endTime}
-                onChange={handleChange}
-                style={{ padding: "8px", width: "100%" }}
-              />
+
+            <div className="form-group">
+              <label>
+                Registration Fee (₹)
+                <input
+                  type="number"
+                  name="registrationFee"
+                  placeholder="0 for free"
+                  value={formData.registrationFee}
+                  onChange={handleChange}
+                />
+              </label>
+              <p className="form-help-text">Leave blank or enter 0 for free event</p>
             </div>
+          </div>
+
+          <div className="form-group form-row full">
+            <label>
+              Tags (comma-separated)
+              <input
+                type="text"
+                name="tags"
+                placeholder="e.g., coding, nodejs, react"
+                value={formData.tags}
+                onChange={handleChange}
+              />
+            </label>
+            <p className="form-help-text">Help participants discover your event</p>
           </div>
         </div>
 
-        <div style={{ marginBottom: "15px" }}>
-          <label>Registration Limit (leave empty for unlimited)</label>
-          <br />
-          <input
-            type="number"
-            name="registrationLimit"
-            placeholder="e.g., 100"
-            value={formData.registrationLimit}
-            onChange={handleChange}
-            style={{ padding: "8px", width: "100%" }}
-          />
-        </div>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Registration Fee (₹)</label>
-          <br />
-          <input
-            type="number"
-            name="registrationFee"
-            placeholder="e.g., 0"
-            value={formData.registrationFee}
-            onChange={handleChange}
-            style={{ padding: "8px", width: "100%" }}
-          />
-        </div>
-
-        <div style={{ marginBottom: "15px" }}>
-          <label>Tags (comma-separated)</label>
-          <br />
-          <input
-            type="text"
-            name="tags"
-            placeholder="e.g., coding, nodejs, react"
-            value={formData.tags}
-            onChange={handleChange}
-            style={{ padding: "8px", width: "100%" }}
-          />
-        </div>
-
-        <div style={{ marginTop: "20px" }}>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: "10px 20px",
-              marginRight: "10px",
-              backgroundColor: "#4CAF50",
-              color: "white",
-              border: "none",
-              cursor: loading ? "not-allowed" : "pointer"
-            }}
-          >
-            {loading ? "Creating..." : "Create as Draft"}
-          </button>
+        <div className="form-actions">
           <button
             type="button"
+            className="btn-cancel"
             onClick={() => navigate("/organizer")}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: "#808080",
-              color: "white",
-              border: "none",
-              cursor: "pointer"
-            }}
+            disabled={loading}
           >
             Cancel
+          </button>
+          <button
+            type="submit"
+            className="btn-submit"
+            disabled={loading}
+          >
+            {loading ? "Creating..." : "Create as Draft"}
           </button>
         </div>
       </form>
 
       {showSuccessPopup && (
-        <div
-          style={{
-            position: "fixed",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            backgroundColor: "#4CAF50",
-            color: "white",
-            padding: "30px",
-            borderRadius: "8px",
-            textAlign: "center",
-            zIndex: 1000,
-            boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)"
-          }}
-        >
-          <h3>{successMessage}</h3>
-          <p>Redirecting to dashboard...</p>
-        </div>
-      )}
-
-      {showSuccessPopup && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            zIndex: 999
-          }}
-        />
+        <>
+          <div className="success-popup-overlay" />
+          <div className="success-popup">
+            <div className="success-popup-icon">✓</div>
+            <h2>Event Created Successfully!</h2>
+            <p>{successMessage}</p>
+            <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)' }}>
+              Redirecting to dashboard in a moment...
+            </p>
+          </div>
+        </>
       )}
     </div>
   );

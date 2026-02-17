@@ -1,4 +1,7 @@
 import { Organizer } from "../models/organizer.model.js";
+import { Event } from "../models/event.model.js";
+import { Participant } from "../models/participant.model.js";
+import { Registration } from "../models/registration.model.js";
 import crypto from "crypto";
 import mongoose from "mongoose";
 
@@ -154,13 +157,32 @@ export const deleteOrganizer = async (req, res) => {
       return res.status(400).json({ message: "Invalid organizer id" });
     }
 
-    const organizer = await Organizer.findByIdAndDelete(id).select("_id organizerName");
-
+    const organizer = await Organizer.findById(id);
     if (!organizer) {
       return res.status(404).json({ message: "Organizer not found" });
     }
 
-    return res.status(200).json({ message: "Organizer deleted successfully" });
+    const organizerEvents = await Event.find({ organizer: id }).select("_id");
+    const eventIds = organizerEvents.map(event => event._id);
+
+    if (eventIds.length > 0) {
+      await Registration.deleteMany({ event: { $in: eventIds } });
+    }
+
+    await Event.deleteMany({ organizer: id });
+
+    await Participant.updateMany(
+      { followedOrganizers: id },
+      { $pull: { followedOrganizers: id } }
+    );
+
+    // Delete the organizer
+    await Organizer.findByIdAndDelete(id);
+
+    return res.status(200).json({ 
+      message: "Organizer and all associated data (events, registrations) deleted successfully",
+      deletedEventsCount: eventIds.length
+    });
   } catch (error) {
     console.error("deleteOrganizer error:", error);
     return res.status(500).json({ message: "Internal server error" });

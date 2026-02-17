@@ -8,6 +8,8 @@ import participantRouter from "./routes/participant.routes.js";
 import adminRouter from "./routes/admin.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import eventRouter from "./routes/event.routes.js";
+import registrationRouter from "./routes/registration.routes.js";
+import organizerRouter from "./routes/organizer.routes.js";
 
 
 
@@ -27,6 +29,8 @@ app.use("/api/participants", participantRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/events", eventRouter);
+app.use("/api/registrations", registrationRouter);
+app.use("/api/organizers", organizerRouter);
 await mongoose.connect("mongodb://127.0.0.1:27017/eventManagementSystem")
 .then(()=>console.log("MONGODB connected"))
 .catch(()=>console.log("Error occured while connecting to MONGODB"))

@@ -137,6 +137,25 @@ export const handleGetSingleEvent = async (req, res) => {
   }
 };
 
+export const handleGetPublishedEvents = async (req, res) => {
+  try {
+    // Get all published events (public endpoint for participants)
+    const events = await Event.find({ status: "PUBLISHED" })
+      .populate("organizer", "organizerName organizerEmail")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: "Published events fetched successfully",
+      events,
+      count: events.length
+    });
+
+  } catch (error) {
+    console.error("handleGetPublishedEvents error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const handleUpdateEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
