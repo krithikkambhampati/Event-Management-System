@@ -7,7 +7,7 @@ function AdminDashboard() {
     totalOrganizers: 0,
     activeOrganizers: 0
   });
-  const [ setLoading] = useState(true);
+  const [setLoading] = useState(true);
 
   useEffect(() => {
     fetchStats();

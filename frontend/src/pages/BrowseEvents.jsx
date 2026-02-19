@@ -1,15 +1,26 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import '../styles/Event.css';
 
 function BrowseEvents() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [filterFollowed, setFilterFollowed] = useState("all");
+  const [filterTrending, setFilterTrending] = useState("all");
+
+  useEffect(() => {
+    // Reset followed filter if user no longer has followed organizers
+    if (filterFollowed === "followed" && (!user?.followedOrganizers || user.followedOrganizers.length === 0)) {
+      setFilterFollowed("all");
+    }
+  }, [user?.followedOrganizers?.length]);
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -57,6 +68,40 @@ function BrowseEvents() {
         e.description.toLowerCase().includes(query) ||
         (e.tags && e.tags.some(tag => tag.toLowerCase().includes(query)))
       );
+    }
+
+    // Apply sorting based on preference
+    filtered.sort((a, b) => {
+      const followedIds = user?.followedOrganizers?.map(org => 
+        typeof org === 'string' ? org : org._id
+      ) || [];
+      
+      const aFollowed = followedIds.includes(a.organizer._id || a.organizer);
+      const bFollowed = followedIds.includes(b.organizer._id || b.organizer);
+      
+      // Followed clubs first
+      if (aFollowed !== bFollowed) return aFollowed ? -1 : 1;
+      
+      // Then by trending (most registrations)
+      const aReg = a.registeredCount || 0;
+      const bReg = b.registeredCount || 0;
+      if (aReg !== bReg) return bReg - aReg;
+      
+      // Then alphabetically
+      return a.eventName.localeCompare(b.eventName);
+    });
+
+    // Apply trending filter
+    if (filterTrending === "trending") {
+      filtered.sort((a, b) => (b.registeredCount || 0) - (a.registeredCount || 0));
+    }
+
+    // Apply followed filter
+    if (filterFollowed === "followed" && user?.followedOrganizers?.length > 0) {
+      const followedIds = user.followedOrganizers.map(org => 
+        typeof org === 'string' ? org : org._id
+      );
+      filtered = filtered.filter(e => followedIds.includes(e.organizer._id || e.organizer));
     }
 
     return filtered;
@@ -113,6 +158,24 @@ function BrowseEvents() {
             <option value="MERCH">Merchandise Events</option>
           </select>
         </div>
+
+        <div className="event-filter-group">
+          <label>Sort By</label>
+          <select value={filterTrending} onChange={(e) => setFilterTrending(e.target.value)}>
+            <option value="all">Most Relevant</option>
+            <option value="trending">Trending (Most Popular)</option>
+          </select>
+        </div>
+
+        {user?.followedOrganizers?.length > 0 && (
+          <div className="event-filter-group">
+            <label>Filter by Organizers</label>
+            <select value={filterFollowed} onChange={(e) => setFilterFollowed(e.target.value)}>
+              <option value="all">All Organizers</option>
+              <option value="followed">Followed Organizers Only</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {filteredEvents.length === 0 ? (

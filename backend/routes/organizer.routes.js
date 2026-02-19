@@ -1,20 +1,28 @@
 import express from "express";
 import { 
-  handleGetAllOrganizers, 
+  handleGetAllOrganizers,
+  handleGetOrganizerById,
   handleFollowOrganizer, 
   handleUnfollowOrganizer,
-  handleGetFollowedOrganizers
+  handleGetFollowedOrganizers,
+  handleUpdateOrganizerProfile
 } from "../controllers/organizer.controller.js";
-import { verifyToken, requireParticipant } from "../middleware/auth.middleware.js";
+import { verifyToken, requireParticipant, requireOrganizer } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-// Public route - get all organizers
+// Public routes
 router.get("/", handleGetAllOrganizers);
 
-// Participant-only routes - follow/unfollow
+// Participant-only routes - follow/unfollow (must come before /:id to avoid matching :id pattern)
 router.post("/:organizerId/follow", verifyToken, requireParticipant, handleFollowOrganizer);
 router.post("/:organizerId/unfollow", verifyToken, requireParticipant, handleUnfollowOrganizer);
 router.get("/followed/my-organizers", verifyToken, requireParticipant, handleGetFollowedOrganizers);
+
+// Organizer-only routes - update profile
+router.put("/:id", verifyToken, requireOrganizer, handleUpdateOrganizerProfile);
+
+// Get single organizer by ID (must come last so specific routes match first)
+router.get("/:id", handleGetOrganizerById);
 
 export default router;

@@ -69,6 +69,27 @@ export const handleRegisterParticipant = async (req, res) => {
       });
     }
 
+    // Validate custom field responses
+    if (event.customFields && event.customFields.length > 0) {
+      const data = registrationData || {};
+      
+      for (const field of event.customFields) {
+        if (field.required && !data[field.fieldLabel]) {
+          return res.status(400).json({ 
+            message: `${field.fieldLabel} is required` 
+          });
+        }
+
+        if (data[field.fieldLabel] && field.fieldType === "DROPDOWN" && field.options.length > 0) {
+          if (!field.options.includes(data[field.fieldLabel])) {
+            return res.status(400).json({ 
+              message: `${field.fieldLabel} has invalid value` 
+            });
+          }
+        }
+      }
+    }
+
     const ticketId = generateTicketId(event.eventName, eventId);
 
     const registration = await Registration.create({
@@ -149,7 +170,7 @@ export const handleGetEventRegistrations = async (req, res) => {
     const registrations = await Registration.find({ 
       event: eventId
     })
-      .populate("participant", "firstName lastName email phone")
+      .populate("participant", "fName lName email contactNumber")
       .sort({ registeredAt: -1 });
 
     const stats = {

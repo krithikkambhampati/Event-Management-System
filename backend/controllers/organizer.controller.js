@@ -1,5 +1,6 @@
 import { Organizer } from "../models/organizer.model.js";
 import { Participant } from "../models/participant.model.js";
+import { VALID_INTERESTS } from "../constants/interests.js";
 
 // Get all organizers (public)
 export const handleGetAllOrganizers = async (req, res) => {
@@ -17,6 +18,32 @@ export const handleGetAllOrganizers = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch organizers"
+    });
+  }
+};
+
+export const handleGetOrganizerById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const organizer = await Organizer.findById(id).select('-password');
+
+    if (!organizer) {
+      return res.status(404).json({
+        success: false,
+        message: "Organizer not found"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      organizer
+    });
+  } catch (error) {
+    console.error("handleGetOrganizerById error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch organizer"
     });
   }
 };
@@ -51,7 +78,19 @@ export const handleFollowOrganizer = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Successfully followed organizer"
+      message: "Successfully followed organizer",
+      user: {
+        _id: participant._id,
+        fName: participant.fName,
+        lName: participant.lName,
+        email: participant.email,
+        collegeName: participant.collegeName,
+        contactNumber: participant.contactNumber,
+        participantType: participant.participantType,
+        interests: participant.interests,
+        followedOrganizers: participant.followedOrganizers,
+        role: "PARTICIPANT"
+      }
     });
   } catch (error) {
     console.error("handleFollowOrganizer error:", error);
@@ -84,7 +123,19 @@ export const handleUnfollowOrganizer = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Successfully unfollowed organizer"
+      message: "Successfully unfollowed organizer",
+      user: {
+        _id: participant._id,
+        fName: participant.fName,
+        lName: participant.lName,
+        email: participant.email,
+        collegeName: participant.collegeName,
+        contactNumber: participant.contactNumber,
+        participantType: participant.participantType,
+        interests: participant.interests,
+        followedOrganizers: participant.followedOrganizers,
+        role: "PARTICIPANT"
+      }
     });
   } catch (error) {
     console.error("handleUnfollowOrganizer error:", error);
@@ -112,6 +163,80 @@ export const handleGetFollowedOrganizers = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch followed organizers"
+    });
+  }
+};
+
+// Update organizer profile
+export const handleUpdateOrganizerProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizerId = req.user.id;
+
+    // Verify organizer is updating their own profile
+    if (id !== organizerId) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized: Cannot update another organizer's profile"
+      });
+    }
+
+    const { organizerName, category, description, contactEmail, contactNumber } = req.body;
+
+    // Validate required fields
+    if (!organizerName || !category || !contactEmail || !contactNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required"
+      });
+    }
+
+    // Validate category
+    if (!VALID_INTERESTS.includes(category)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid organizer category. Please select a valid category."
+      });
+    }
+
+    const organizer = await Organizer.findByIdAndUpdate(
+      id,
+      {
+        organizerName,
+        category,
+        description,
+        contactEmail,
+        contactNumber
+      },
+      { returnDocument: 'after' }
+    ).select('-password');
+
+    if (!organizer) {
+      return res.status(404).json({
+        success: false,
+        message: "Organizer not found"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      organizer: {
+        _id: organizer._id,
+        email: organizer.email,
+        role: "ORGANIZER",
+        organizerName: organizer.organizerName,
+        category: organizer.category,
+        description: organizer.description,
+        contactEmail: organizer.contactEmail,
+        contactNumber: organizer.contactNumber
+      }
+    });
+  } catch (error) {
+    console.error("handleUpdateOrganizerProfile error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update organizer profile"
     });
   }
 };

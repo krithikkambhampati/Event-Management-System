@@ -14,7 +14,8 @@ export const handleCreateEvent = async (req, res) => {
       endDate,
       registrationLimit,
       registrationFee,
-      tags
+      tags,
+      customFields
     } = req.body;
 
     if (!eventName || !description || !eventType || !registrationDeadline || !startDate || !endDate) {
@@ -59,8 +60,8 @@ export const handleCreateEvent = async (req, res) => {
       registrationFee: registrationFee || 0,
       organizer: organizerId,
       tags: tags || [],
+      customFields: customFields || [],
       status: "DRAFT", 
-      customFields: [],
       merchandiseVariants: []
     });
 
@@ -126,9 +127,19 @@ export const handleGetSingleEvent = async (req, res) => {
       return res.status(404).json({ message: "Event not found" });
     }
 
+    // Get registration count
+    const { Registration } = await import("../models/registration.model.js");
+    const registeredCount = await Registration.countDocuments({
+      event: eventId,
+      participationStatus: { $ne: "Cancelled" }
+    });
+
+    const eventData = event.toObject();
+    eventData.registeredCount = registeredCount;
+
     res.status(200).json({
       message: "Event fetched successfully",
-      event
+      event: eventData
     });
 
   } catch (error) {
@@ -144,10 +155,24 @@ export const handleGetPublishedEvents = async (req, res) => {
       .populate("organizer", "organizerName organizerEmail")
       .sort({ createdAt: -1 });
 
+    // Add registration counts to each event
+    const { Registration } = await import("../models/registration.model.js");
+    const eventsWithCounts = await Promise.all(
+      events.map(async (event) => {
+        const registeredCount = await Registration.countDocuments({
+          event: event._id,
+          participationStatus: { $ne: "Cancelled" }
+        });
+        const eventData = event.toObject();
+        eventData.registeredCount = registeredCount;
+        return eventData;
+      })
+    );
+
     res.status(200).json({
       message: "Published events fetched successfully",
-      events,
-      count: events.length
+      events: eventsWithCounts,
+      count: eventsWithCounts.length
     });
 
   } catch (error) {

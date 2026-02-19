@@ -3,6 +3,8 @@ import { useAuth } from "../context/AuthContext";
 import Login from "../pages/Login";
 import Signup from "../pages/Signup";
 import Dashboard from "../pages/Dashboard";
+import Profile from "../pages/Profile";
+import OrganizerProfile from "../pages/OrganizerProfile";
 import MainLayout from "../layout/MainLayout";
 import ProtectedRoute from "../components/ProtectedRoute";
 import AdminDashboard from "../pages/AdminDashboard";
@@ -14,6 +16,7 @@ import EventDetails from "../pages/EventDetails";
 import ParticipationHistory from "../pages/ParticipationHistory";
 import BrowseEvents from "../pages/BrowseEvents";
 import BrowseOrganizers from "../pages/BrowseOrganizers";
+import EventRegistrations from "../pages/EventRegistrations";
 
 function AppRoutes() {
 	const { user, loading } = useAuth();
@@ -61,6 +64,16 @@ function AppRoutes() {
 					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
 						<MainLayout>
 							<Dashboard />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/profile"
+				element={
+					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
+						<MainLayout>
+							<Profile />
 						</MainLayout>
 					</ProtectedRoute>
 				}
@@ -126,6 +139,16 @@ function AppRoutes() {
 				}
 			/>
 			<Route
+				path="/organizer/profile"
+				element={
+					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
+						<MainLayout>
+							<OrganizerProfile />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
 				path="/organizer/create-event"
 				element={
 					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
@@ -161,6 +184,16 @@ function AppRoutes() {
 					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
 						<MainLayout>
 							<ParticipationHistory />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/organizer/events/:eventId/registrations"
+				element={
+					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
+						<MainLayout>
+							<EventRegistrations />
 						</MainLayout>
 					</ProtectedRoute>
 				}

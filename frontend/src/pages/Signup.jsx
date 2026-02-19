@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import '../styles/Auth.css';
 
 function Signup() {
   const navigate = useNavigate();
+  const { setUser } = useAuth();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -29,21 +31,43 @@ function Signup() {
     setError("");
     setIsLoading(true);
 
-    const res = await fetch("http://localhost:8000/api/participants/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData)
-    });
+    try {
+      // Step 1: Signup
+      const signupRes = await fetch("http://localhost:8000/api/participants/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData)
+      });
 
-    const data = await res.json();
+      const signupData = await signupRes.json();
 
-    if (res.ok) {
-      navigate("/login");
-    } else {
-      setError(data.message || "Signup failed");
+      if (!signupRes.ok) {
+        setError(signupData.message || "Signup failed");
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 2: Auto-login
+      const loginRes = await fetch("http://localhost:8000/api/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email, password: formData.password })
+      });
+
+      const loginData = await loginRes.json();
+
+      if (loginRes.ok && loginData.user) {
+        setUser(loginData.user);
+        navigate("/dashboard");
+      } else {
+        setError(loginData.message || "Auto-login failed");
+      }
+    } catch (err) {
+      setError("Error: " + err.message);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (

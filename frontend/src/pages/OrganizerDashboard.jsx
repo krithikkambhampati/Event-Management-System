@@ -232,6 +232,16 @@ function OrganizerDashboard() {
                   View Details
                 </button>
 
+                {event.status === "PUBLISHED" && (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => navigate(`/organizer/events/${event._id}/registrations`)}
+                    disabled={actionLoading === event._id}
+                  >
+                    View Registrations
+                  </button>
+                )}
+
                 {event.status === "DRAFT" && (
                   <>
                     <button

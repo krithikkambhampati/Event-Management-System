@@ -15,10 +15,10 @@ function EventDetails() {
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({});
   
-  // Registration states
   const [registrationStatus, setRegistrationStatus] = useState(null); // null, "registered", "not-registered"
   const [registrationData, setRegistrationData] = useState(null); // stores ticket info if registered
   const [isRegistering, setIsRegistering] = useState(false);
+  const [customFieldResponses, setCustomFieldResponses] = useState({});
 
   const fetchEventDetails = async () => {
     setLoading(true);
@@ -152,6 +152,15 @@ function EventDetails() {
       return;
     }
 
+    if (event.customFields && event.customFields.length > 0) {
+      for (const field of event.customFields) {
+        if (field.required && !customFieldResponses[field.fieldLabel]) {
+          setError(`${field.fieldLabel} is required`);
+          return;
+        }
+      }
+    }
+
     setIsRegistering(true);
     setError("");
     setSuccess("");
@@ -165,7 +174,7 @@ function EventDetails() {
             "Content-Type": "application/json"
           },
           credentials: "include",
-          body: JSON.stringify({})
+          body: JSON.stringify({ registrationData: customFieldResponses })
         }
       );
 
@@ -192,6 +201,16 @@ function EventDetails() {
     return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const isDeadlinePassed = () => {
+    if (!event?.registrationDeadline) return false;
+    return new Date() > new Date(event.registrationDeadline);
+  };
+
+  const isCapacityReached = () => {
+    if (!event?.registrationLimit) return false;
+    return event.registeredCount >= event.registrationLimit;
+  };
+
   const isOrganizer = user?.role === "ORGANIZER" && user?._id === event?.organizer?._id;
   const canEditAll = isOrganizer && event?.status === "DRAFT";
   const canEditPartial = isOrganizer && event?.status === "PUBLISHED";
@@ -203,8 +222,8 @@ function EventDetails() {
     }
   }, [eventId, user]);
 
-  if (loading) return <div className="event-details-container"><p>Loading event details...</p></div>;
-  if (!event) return <div className="event-details-container"><p>Event not found</p></div>;
+  if (loading) return <div className="event-details-container"><div className="event-loading">Loading event details...</div></div>;
+  if (!event) return <div className="event-details-container"><div className="event-not-found">Event not found</div></div>;
 
   return (
     <div className="event-details-container">
@@ -218,139 +237,110 @@ function EventDetails() {
       </div>
 
       <div className="event-details-content">
-        <h1 className="event-details-title">{event.eventName}</h1>
-
         {isEditing && (canEditAll || canEditPartial) ? (
+          // EDIT MODE
           <div className="event-edit-form">
             <h3>Edit Event {canEditPartial && "(Limited Edit Mode - Published Event)"}</h3>
             
             {canEditAll && (
               <>
                 <div className="form-group">
-                  <label>
-                    Event Name:
-                    <input
-                      type="text"
-                      name="eventName"
-                      value={editFormData.eventName}
-                      onChange={handleEditChange}
-                    />
-                  </label>
+                  <label>Event Name</label>
+                  <input  
+                    type="text"
+                    name="eventName"
+                    value={editFormData.eventName}
+                    onChange={handleEditChange}
+                  />
                 </div>
 
                 <div className="form-group">
-                  <label>
-                    Event Type:
-                    <select
-                      name="eventType"
-                      value={editFormData.eventType}
-                      onChange={handleEditChange}
-                    >
-                      <option value="NORMAL">Normal Event</option>
-                      <option value="MERCH">Merchandise Event</option>
-                    </select>
-                  </label>
+                  <label>Event Type</label>
+                  <select name="eventType" value={editFormData.eventType} onChange={handleEditChange}>
+                    <option value="NORMAL">Normal Event</option>
+                    <option value="MERCH">Merchandise Event</option>
+                  </select>
                 </div>
 
                 <div className="form-group">
-                  <label>
-                    Eligibility:
-                    <select
-                      name="eligibility"
-                      value={editFormData.eligibility}
-                      onChange={handleEditChange}
-                    >
-                      <option value="IIIT">IIIT Only</option>
-                      <option value="NON_IIIT">Non-IIIT Only</option>
-                      <option value="BOTH">Both IIIT and Non-IIIT</option>
-                    </select>
-                  </label>
+                  <label>Eligibility</label>
+                  <select name="eligibility" value={editFormData.eligibility} onChange={handleEditChange}>
+                    <option value="IIIT">IIIT Only</option>
+                    <option value="NON_IIIT">Non-IIIT Only</option>
+                    <option value="BOTH">Both IIIT and Non-IIIT</option>
+                  </select>
                 </div>
 
                 <div className="form-group">
-                  <label>
-                    Start Date:
-                    <input
-                      type="datetime-local"
-                      name="startDate"
-                      value={new Date(editFormData.startDate).toISOString().slice(0, 16)}
-                      onChange={handleEditChange}
-                    />
-                  </label>
+                  <label>Start Date</label>
+                  <input
+                    type="datetime-local"
+                    name="startDate"
+                    value={new Date(editFormData.startDate).toISOString().slice(0, 16)}
+                    onChange={handleEditChange}
+                  />
                 </div>
 
                 <div className="form-group">
-                  <label>
-                    End Date:
-                    <input
-                      type="datetime-local"
-                      name="endDate"
-                      value={new Date(editFormData.endDate).toISOString().slice(0, 16)}
-                      onChange={handleEditChange}
-                    />
-                  </label>
+                  <label>End Date</label>
+                  <input
+                    type="datetime-local"
+                    name="endDate"
+                    value={new Date(editFormData.endDate).toISOString().slice(0, 16)}
+                    onChange={handleEditChange}
+                  />
                 </div>
 
                 <div className="form-group">
-                  <label>
-                    Registration Fee (₹):
-                    <input
-                      type="number"
-                      name="registrationFee"
-                      value={editFormData.registrationFee}
-                      onChange={handleEditChange}
-                    />
-                  </label>
+                  <label>Registration Fee (₹)</label>
+                  <input
+                    type="number"
+                    name="registrationFee"
+                    value={editFormData.registrationFee}
+                    onChange={handleEditChange}
+                  />
                 </div>
 
                 <div className="form-group">
-                  <label>
-                    Tags (comma-separated):
-                    <input
-                      type="text"
-                      name="tags"
-                      value={editFormData.tags}
-                      onChange={(e) => setEditFormData(prev => ({ ...prev, tags: e.target.value }))}
-                      placeholder="e.g., workshop, beginner, online"
-                    />
-                  </label>
+                  <label>Tags (comma-separated)</label>
+                  <input
+                    type="text"
+                    name="tags"
+                    value={editFormData.tags}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, tags: e.target.value }))}
+                    placeholder="e.g., workshop, beginner, online"
+                  />
                 </div>
               </>
             )}
 
             <div className="form-group">
-              <label>
-                Description:
-                <textarea
-                  name="description"
-                  value={editFormData.description}
-                  onChange={handleEditChange}
-                />
-              </label>
+              <label>Description</label>
+              <textarea
+                name="description"
+                value={editFormData.description}
+                onChange={handleEditChange}
+              />
             </div>
 
             <div className="form-group">
-              <label>
-                Registration Deadline:
-                <input
-                  type="datetime-local"
-                  name="registrationDeadline"
-                  value={new Date(editFormData.registrationDeadline).toISOString().slice(0, 16)}
-                  onChange={handleEditChange}
-                />
-              </label>
+              <label>Registration Deadline</label>
+              <input
+                type="datetime-local"
+                name="registrationDeadline"
+                value={new Date(editFormData.registrationDeadline).toISOString().slice(0, 16)}
+                onChange={handleEditChange}
+              />
             </div>
 
             <div className="form-group">
-              <label>
-                Registration Limit:
-                <input
-                  type="number"
-                  name="registrationLimit"
-                  value={editFormData.registrationLimit}
-                  onChange={handleEditChange}
-                />
-              </label>
+              <label>Registration Limit</label>
+              <input
+                type="number"
+                name="registrationLimit"
+                value={editFormData.registrationLimit}
+                onChange={handleEditChange}
+              />
             </div>
 
             <div className="form-actions">
@@ -359,57 +349,67 @@ function EventDetails() {
             </div>
           </div>
         ) : (
+          // VIEW MODE
           <>
-            <div className="event-details-meta">
-              <div className="event-meta-item">
-                <strong>Status</strong>
-                <p><span className="event-status">{event.status}</span></p>
-              </div>
-              <div className="event-meta-item">
-                <strong>Type</strong>
-                <p><span className="event-type-badge">{event.eventType === "NORMAL" ? "Normal Event" : "Merchandise Event"}</span></p>
-              </div>
-              <div className="event-meta-item">
-                <strong>Eligibility</strong>
-                <p>{event.eligibility}</p>
+            <div className="event-hero-section">
+              <h1 className="event-details-title">{event.eventName}</h1>
+              <div className="event-status-bar">
+                <span className="event-status">{event.status}</span>
+                <span className="event-type-badge">{event.eventType === "NORMAL" ? "Normal Event" : "Merchandise"}</span>
               </div>
             </div>
 
-            <div className="event-description">
-              <strong>Description</strong>
-              <p>{event.description}</p>
+            {/* Description Section */}
+            <div className="event-section">
+              <h2 className="event-section-title">About</h2>
+              <div className="event-section-content">
+                <p className="event-description">{event.description}</p>
+              </div>
             </div>
 
-            <div className="event-details-meta">
-              <div className="event-meta-item">
-                <strong>Registration Deadline</strong>
-                <p>{formatDate(event.registrationDeadline)}</p>
-              </div>
-              <div className="event-meta-item">
-                <strong>Start Date</strong>
-                <p>{formatDate(event.startDate)}</p>
-              </div>
-              <div className="event-meta-item">
-                <strong>End Date</strong>
-                <p>{formatDate(event.endDate)}</p>
-              </div>
-              {event.registrationLimit && (
-                <div className="event-meta-item">
-                  <strong>Capacity</strong>
-                  <p>{event.registrationLimit} participants</p>
+            {/* Key Information */}
+            <div className="event-section">
+              <h2 className="event-section-title">Event Details</h2>
+              <div className="event-key-info">
+                <div className="info-item">
+                  <div className="info-label">Organizer</div>
+                  <div className="info-value">{event.organizer?.organizerName}</div>
                 </div>
-              )}
-              {event.registrationFee > 0 && (
-                <div className="event-meta-item">
-                  <strong>Registration Fee</strong>
-                  <p>₹{event.registrationFee}</p>
+                <div className="info-item">
+                  <div className="info-label">Eligibility</div>
+                  <div className="info-value">{event.eligibility}</div>
                 </div>
-              )}
+                <div className="info-item">
+                  <div className="info-label">Registration Deadline</div>
+                  <div className="info-value">{formatDate(event.registrationDeadline)}</div>
+                </div>
+                <div className="info-item">
+                  <div className="info-label">Start Date</div>
+                  <div className="info-value">{formatDate(event.startDate)}</div>
+                </div>
+                <div className="info-item">
+                  <div className="info-label">End Date</div>
+                  <div className="info-value">{formatDate(event.endDate)}</div>
+                </div>
+                {event.registrationLimit && (
+                  <div className="info-item">
+                    <div className="info-label">Capacity</div>
+                    <div className="info-value highlight">{event.registrationLimit}</div>
+                  </div>
+                )}
+                {event.registrationFee > 0 && (
+                  <div className="info-item">
+                    <div className="info-label">Registration Fee</div>
+                    <div className="info-value highlight">₹{event.registrationFee}</div>
+                  </div>
+                )}
+              </div>
             </div>
 
+            {/* Tags */}
             {event.tags && event.tags.length > 0 && (
-              <div style={{ marginBottom: 'var(--spacing-2xl)' }}>
-                <strong style={{ display: 'block', marginBottom: 'var(--spacing-md)', color: 'var(--primary)' }}>Tags</strong>
+              <div className="event-section">
+                <h2 className="event-section-title">Tags</h2>
                 <div className="event-tags">
                   {event.tags.map((tag, idx) => (
                     <span key={idx} className="event-tag">{tag}</span>
@@ -418,57 +418,172 @@ function EventDetails() {
               </div>
             )}
 
+            {/* Organizer Controls */}
             {isOrganizer && (
-              <div className="organizer-controls">
-                <h3>Organizer Controls</h3>
-                <div className="organizer-controls-buttons">
+              <div className="event-section">
+                <h2 className="event-section-title">Organizer Controls</h2>
+                <div className="event-actions">
                   {canEdit && (
-                    <button className="organizer-controls-btn" onClick={() => setIsEditing(true)}>Edit Event</button>
+                    <button className="btn-primary" onClick={() => setIsEditing(true)}>Edit Event</button>
                   )}
                   {event.status === "DRAFT" && (
-                    <button className="organizer-controls-btn" onClick={() => navigate(`/organizer`)}>Publish from Dashboard</button>
+                    <button className="btn-secondary" onClick={() => navigate(`/organizer`)}>Publish Event</button>
                   )}
                 </div>
               </div>
             )}
 
+            {/* Registration Section for Participants */}
             {user?.role === "PARTICIPANT" && event.status === "PUBLISHED" && (
-              <div className="registration-section">
-                <h3>Registration</h3>
-
+              <div className="event-section">
+                <h2 className="event-section-title">Registration</h2>
+                
                 {registrationStatus === "registered" && registrationData && (
-                  <div className="registration-status registration-registered">
-                    <p>✓ You are registered for this event!</p>
-                    <div className="registration-ticket-info">
-                      <p><strong>Ticket ID:</strong> {registrationData.ticketId}</p>
-                      <p><strong>Registered on:</strong> {formatDate(registrationData.registeredAt)}</p>
-                      <p><strong>Status:</strong> {registrationData.participationStatus}</p>
+                  <div className="registration-status">
+                    <p className="registration-status-text">You are registered for this event!</p>
+                    <div className="ticket-id"><strong>Ticket ID:</strong> {registrationData.ticketId}</div>
+                    <div style={{ marginTop: 'var(--spacing-md)' }}>
+                      <button className="btn-secondary" onClick={() => navigate("/participation-history")}>
+                        View My Registrations
+                      </button>
                     </div>
-                    <button className="btn-view-all" onClick={() => navigate("/participation-history")}>
-                      View All My Registrations
-                    </button>
                   </div>
                 )}
 
-                {registrationStatus === "not-registered" && (
-                  <div>
-                    <p className="registration-not-registered">You are not yet registered for this event.</p>
+                {(registrationStatus === "not-registered" || registrationStatus === null) && (
+                  <>
+                    {isDeadlinePassed() && (
+                      <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-md)' }}>
+                        Registration Closed - The deadline for this event has passed.
+                      </div>
+                    )}
+                    
+                    {isCapacityReached() && (
+                      <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-md)' }}>
+                        Event Full - This event has reached its maximum capacity.
+                      </div>
+                    )}
+
+                    {!isDeadlinePassed() && !isCapacityReached() && (
+                      <p style={{ marginBottom: 'var(--spacing-md)' }}>Join this event by registering below.</p>
+                    )}
+
+                    {/* Custom Registration Form Fields */}
+                    {event.customFields && event.customFields.length > 0 && (
+                      <div className="custom-form-section" style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-md)', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                        <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Registration Details</h3>
+                        {event.customFields.map((field, idx) => (
+                          <div key={idx} className="form-field-group" style={{ marginBottom: 'var(--spacing-md)' }}>
+                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: 500 }}>
+                              {field.fieldLabel}
+                              {field.required && <span style={{ color: '#dc3545' }}> *</span>}
+                            </label>
+
+                            {field.fieldType === 'TEXT' && (
+                              <input
+                                type="text"
+                                placeholder={`Enter ${field.fieldLabel.toLowerCase()}`}
+                                value={customFieldResponses[field.fieldLabel] || ''}
+                                onChange={(e) => setCustomFieldResponses(prev => ({
+                                  ...prev,
+                                  [field.fieldLabel]: e.target.value
+                                }))}
+                                style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px' }}
+                              />
+                            )}
+
+                            {field.fieldType === 'EMAIL' && (
+                              <input
+                                type="email"
+                                placeholder="Enter email"
+                                value={customFieldResponses[field.fieldLabel] || ''}
+                                onChange={(e) => setCustomFieldResponses(prev => ({
+                                  ...prev,
+                                  [field.fieldLabel]: e.target.value
+                                }))}
+                                style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px' }}
+                              />
+                            )}
+
+                            {field.fieldType === 'NUMBER' && (
+                              <input
+                                type="number"
+                                placeholder="Enter number"
+                                value={customFieldResponses[field.fieldLabel] || ''}
+                                onChange={(e) => setCustomFieldResponses(prev => ({
+                                  ...prev,
+                                  [field.fieldLabel]: e.target.value
+                                }))}
+                                style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px' }}
+                              />
+                            )}
+
+                            {field.fieldType === 'DROPDOWN' && (
+                              <select
+                                value={customFieldResponses[field.fieldLabel] || ''}
+                                onChange={(e) => setCustomFieldResponses(prev => ({
+                                  ...prev,
+                                  [field.fieldLabel]: e.target.value
+                                }))}
+                                style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px', cursor: 'pointer' }}
+                              >
+                                <option value="">Select an option</option>
+                                {field.options && field.options.map((opt, oidx) => (
+                                  <option key={oidx} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            )}
+
+                            {field.fieldType === 'CHECKBOX' && (
+                              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                {field.options && field.options.map((opt, oidx) => (
+                                  <label key={oidx} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      value={opt}
+                                      checked={(customFieldResponses[field.fieldLabel] || []).includes(opt)}
+                                      onChange={(e) => {
+                                        const currentValues = customFieldResponses[field.fieldLabel] || [];
+                                        const updatedValues = e.target.checked
+                                          ? [...currentValues, opt]
+                                          : currentValues.filter(v => v !== opt);
+                                        setCustomFieldResponses(prev => ({
+                                          ...prev,
+                                          [field.fieldLabel]: updatedValues
+                                        }));
+                                      }}
+                                      style={{ marginRight: '6px', cursor: 'pointer' }}
+                                    />
+                                    {opt}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+
+                            {field.fieldType === 'FILE' && (
+                              <input
+                                type="file"
+                                onChange={(e) => setCustomFieldResponses(prev => ({
+                                  ...prev,
+                                  [field.fieldLabel]: e.target.files?.[0]?.name || ''
+                                }))}
+                                style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px' }}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
                     <button
-                      className="btn-register"
+                      className="btn-primary"
                       onClick={handleRegisterForEvent}
-                      disabled={isRegistering}
+                      disabled={isRegistering || isDeadlinePassed() || isCapacityReached()}
                     >
-                      {isRegistering ? "Registering..." : "Register for Event"}
+                      {isDeadlinePassed() ? "Registration Closed" : isCapacityReached() ? "Event Full" : isRegistering ? "Registering..." : "Register Now"}
                     </button>
-                  </div>
+                  </>
                 )}
-              </div>
-            )}
-
-            {isOrganizer && (
-              <div className="organizer-info">
-                <h3>Organizer Info</h3>
-                <p><strong>Organizer:</strong> {event.organizer?.organizerName}</p>
               </div>
             )}
           </>

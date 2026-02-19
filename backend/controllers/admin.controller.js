@@ -132,7 +132,7 @@ export const updateOrganizerStatus = async (req, res) => {
     const organizer = await Organizer.findByIdAndUpdate(
       id,
       { isActive },
-      { new: true }
+      { returnDocument: 'after' }
     ).select("_id organizerName isActive");
 
     if (!organizer) {

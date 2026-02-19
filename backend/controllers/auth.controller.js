@@ -74,8 +74,16 @@ export const handleLogin = async (req, res) => {
     if (role === "PARTICIPANT") {
       userResponse.fName = user.fName;
       userResponse.lName = user.lName;
+      userResponse.collegeName = user.collegeName;
+      userResponse.contactNumber = user.contactNumber;
+      userResponse.participantType = user.participantType;
+      userResponse.interests = user.interests;
     } else if (role === "ORGANIZER") {
       userResponse.organizerName = user.organizerName;
+      userResponse.category = user.category;
+      userResponse.description = user.description;
+      userResponse.contactEmail = user.contactEmail;
+      userResponse.contactNumber = user.contactNumber;
     } else if (role === "ADMIN") {
       userResponse.name = user.name;
     }

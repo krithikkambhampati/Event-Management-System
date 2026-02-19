@@ -28,6 +28,14 @@ function CreateEvent() {
   const [successMessage, setSuccessMessage] = useState("");
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
+  const [customFields, setCustomFields] = useState([]);
+  const [newField, setNewField] = useState({
+    fieldLabel: "",
+    fieldType: "TEXT",
+    required: false,
+    options: ""
+  });
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -35,6 +43,28 @@ function CreateEvent() {
       [name]: value
     });
     setError(""); 
+  };
+
+  const addCustomField = () => {
+    if (!newField.fieldLabel.trim()) {
+      setError("Field label is required");
+      return;
+    }
+    const field = {
+      fieldLabel: newField.fieldLabel,
+      fieldType: newField.fieldType,
+      required: newField.required,
+      options: newField.fieldType === "DROPDOWN" || newField.fieldType === "CHECKBOX"
+        ? newField.options.split(",").map(opt => opt.trim()).filter(opt => opt)
+        : []
+    };
+    setCustomFields([...customFields, field]);
+    setNewField({ fieldLabel: "", fieldType: "TEXT", required: false, options: "" });
+    setError("");
+  };
+
+  const removeCustomField = (index) => {
+    setCustomFields(customFields.filter((_, i) => i !== index));
   };
 
   const validateForm = () => {
@@ -116,7 +146,8 @@ function CreateEvent() {
         endDate: endDate,
         registrationLimit: formData.registrationLimit ? parseInt(formData.registrationLimit) : null,
         registrationFee: formData.registrationFee ? parseInt(formData.registrationFee) : 0,
-        tags: tagsArray
+        tags: tagsArray,
+        customFields: customFields
       };
 
       const res = await fetch(
@@ -358,6 +389,76 @@ function CreateEvent() {
             </label>
             <p className="form-help-text">Help participants discover your event</p>
           </div>
+        </div>
+
+        <div className="form-section">
+          <div className="form-section-title">Registration Form Fields</div>
+          <p className="form-help-text">Add custom fields for participant information</p>
+
+          <div style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-lg)', background: 'var(--background)', borderRadius: 'var(--radius-md)' }}>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Field Label
+                  <input
+                    type="text"
+                    placeholder="e.g., Phone Number, Dietary Preference"
+                    value={newField.fieldLabel}
+                    onChange={(e) => setNewField({ ...newField, fieldLabel: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="form-group">
+                <label>Field Type
+                  <select value={newField.fieldType} onChange={(e) => setNewField({ ...newField, fieldType: e.target.value })}>
+                    <option value="TEXT">Text</option>
+                    <option value="EMAIL">Email</option>
+                    <option value="NUMBER">Number</option>
+                    <option value="DROPDOWN">Dropdown</option>
+                    <option value="CHECKBOX">Checkbox</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            {(newField.fieldType === "DROPDOWN" || newField.fieldType === "CHECKBOX") && (
+              <div className="form-group form-row full">
+                <label>Options (comma-separated)
+                  <input
+                    type="text"
+                    placeholder="e.g., Option 1, Option 2, Option 3"
+                    value={newField.options}
+                    onChange={(e) => setNewField({ ...newField, options: e.target.value })}
+                  />
+                </label>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
+              <label style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center', margin: 0 }}>
+                <input type="checkbox" checked={newField.required} onChange={(e) => setNewField({ ...newField, required: e.target.checked })} />
+                <span>Required Field</span>
+              </label>
+              <button type="button" onClick={addCustomField} style={{ padding: 'var(--spacing-sm) var(--spacing-lg)', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>
+                Add Field
+              </button>
+            </div>
+          </div>
+
+          {customFields.length > 0 && (
+            <div>
+              <h4 style={{ marginBottom: 'var(--spacing-md)' }}>Added Fields ({customFields.length})</h4>
+              {customFields.map((field, idx) => (
+                <div key={idx} style={{ padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-sm)', background: 'var(--background)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong>{field.fieldLabel}</strong> ({field.fieldType}){field.required && <span style={{ color: 'red' }}>*</span>}
+                  </div>
+                  <button type="button" onClick={() => removeCustomField(idx)} style={{ padding: 'var(--spacing-xs) var(--spacing-md)', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="form-actions">

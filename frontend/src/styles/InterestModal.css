@@ -1,0 +1,248 @@
+/* Interest Modal - Rich & Sophisticated */
+
+.interest-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(58, 47, 39, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  animation: fadeIn var(--transition-base);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
+}
+
+.interest-modal {
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(255, 255, 255, 0.95) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 20px 60px rgba(58, 47, 39, 0.3);
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: slideUp var(--transition-base);
+  position: relative;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.interest-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--accent-vivid) 0%, var(--primary) 50%, var(--accent-vivid) 100%);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.interest-modal-header {
+  padding: var(--spacing-2xl);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 1;
+}
+
+.interest-modal-header h2 {
+  font-size: var(--font-size-2xl);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+  font-weight: 700;
+}
+
+.interest-modal-header p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+}
+
+.interest-modal-content {
+  padding: var(--spacing-2xl);
+}
+
+.interests-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.interest-modal-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--transition-fast);
+  background: var(--surface);
+}
+
+.interest-modal-checkbox:hover {
+  border-color: var(--accent-light);
+  background: rgba(212, 181, 212, 0.05);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.interest-modal-checkbox input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--accent-vivid);
+}
+
+.interest-modal-checkbox input[type="checkbox"]:checked {
+  accent-color: var(--accent-vivid);
+}
+
+.interest-modal-checkbox span {
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  flex: 1;
+}
+
+.interest-modal-checkbox:has(input:checked) {
+  border-color: var(--accent-vivid);
+  background: linear-gradient(135deg, rgba(181, 136, 181, 0.08) 0%, rgba(212, 181, 212, 0.05) 100%);
+  box-shadow: 0 0 0 2px rgba(181, 136, 181, 0.2);
+}
+
+.interest-modal-footer {
+  display: flex;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-2xl);
+  border-top: 1px solid var(--border);
+  background: var(--surface-alt);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  padding: var(--spacing-md) var(--spacing-xl);
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 140px;
+}
+
+.modal-btn-primary {
+  background: linear-gradient(135deg, var(--accent-vivid) 0%, var(--accent) 100%);
+  color: var(--text-white);
+  box-shadow: var(--shadow-md);
+}
+
+.modal-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-btn-secondary {
+  background: var(--border);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.modal-btn-secondary:hover:not(:disabled) {
+  background: var(--border-dark);
+  color: var(--text-white);
+}
+
+.modal-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Scrollbar styling */
+.interest-modal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.interest-modal::-webkit-scrollbar-track {
+  background: var(--surface-alt);
+  border-radius: var(--radius-lg);
+}
+
+.interest-modal::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.interest-modal::-webkit-scrollbar-thumb:hover {
+  background: var(--border-dark);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .interest-modal {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .interest-modal-header {
+    padding: var(--spacing-xl);
+    padding-bottom: var(--spacing-md);
+  }
+
+  .interest-modal-content {
+    padding: var(--spacing-xl);
+  }
+
+  .interests-checkbox-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--spacing-sm);
+  }
+
+  .interest-modal-checkbox {
+    padding: var(--spacing-md);
+  }
+
+  .interest-modal-footer {
+    padding: var(--spacing-xl);
+    gap: var(--spacing-md);
+    flex-direction: column;
+  }
+
+  .modal-btn {
+    width: 100%;
+    min-width: unset;
+  }
+
+  .interest-modal-header h2 {
+    font-size: var(--font-size-xl);
+  }
+}

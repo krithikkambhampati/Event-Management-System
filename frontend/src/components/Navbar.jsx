@@ -58,6 +58,16 @@ function Navbar() {
 
         <div className="navbar-user">
           <span>{user.fName || user.email}</span>
+          {user.role === "PARTICIPANT" && (
+            <Link to="/profile" className="navbar-profile-link">
+              Profile
+            </Link>
+          )}
+          {user.role === "ORGANIZER" && (
+            <Link to="/organizer/profile" className="navbar-profile-link">
+              Profile
+            </Link>
+          )}
           <button className="navbar-logout-btn" onClick={handleLogout}>
             Logout
           </button>
