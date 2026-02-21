@@ -20,6 +20,7 @@
     opacity: 0;
     backdrop-filter: blur(0px);
   }
+
   to {
     opacity: 1;
     backdrop-filter: blur(4px);
@@ -44,6 +45,7 @@
     transform: translateY(40px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -245,4 +247,94 @@
   .interest-modal-header h2 {
     font-size: var(--font-size-xl);
   }
+}
+
+/* Step indicator */
+.onboarding-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-top: var(--spacing-lg);
+}
+
+.onboarding-step {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  transition: all var(--transition-fast);
+}
+
+.onboarding-step.active {
+  background: var(--accent-vivid);
+  color: white;
+}
+
+.onboarding-step-line {
+  width: 40px;
+  height: 2px;
+  background: var(--border);
+}
+
+/* Organizer follow list */
+.organizer-follow-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.organizer-follow-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: var(--surface);
+}
+
+.organizer-follow-item:hover {
+  border-color: var(--accent-light);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.organizer-follow-item:has(input:checked) {
+  border-color: var(--accent-vivid);
+  background: linear-gradient(135deg, rgba(181, 136, 181, 0.08) 0%, rgba(212, 181, 212, 0.05) 100%);
+}
+
+.organizer-follow-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-vivid);
+  cursor: pointer;
+}
+
+.organizer-follow-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.organizer-follow-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+}
+
+.organizer-follow-category {
+  font-size: var(--font-size-sm);
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }

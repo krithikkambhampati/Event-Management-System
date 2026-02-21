@@ -5,12 +5,20 @@ import '../styles/Dashboard.css';
 function AdminDashboard() {
   const [stats, setStats] = useState({
     totalOrganizers: 0,
-    activeOrganizers: 0
+    activeOrganizers: 0,
+    pendingPasswordResets: 0
   });
-  const [setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetchStats();
+  }, [refreshKey]);
+
+  useEffect(() => {
+    const handleRefresh = () => setRefreshKey(prev => prev + 1);
+    window.addEventListener("password-reset-updated", handleRefresh);
+    return () => window.removeEventListener("password-reset-updated", handleRefresh);
   }, []);
 
   const fetchStats = async () => {
@@ -21,9 +29,11 @@ function AdminDashboard() {
       
       if (res.ok) {
         const data = await res.json();
+        const pendingCount = data.organizers?.filter(o => o.passwordResetStatus === "PENDING")?.length || 0;
         setStats({
           totalOrganizers: data.organizers?.length || 0,
-          activeOrganizers: data.organizers?.filter(o => !o.disabled)?.length || 0
+          activeOrganizers: data.organizers?.filter(o => !o.disabled)?.length || 0,
+          pendingPasswordResets: pendingCount
         });
       }
     } catch (err) {
@@ -48,6 +58,10 @@ function AdminDashboard() {
         <div className="stat-box">
           <div className="stat-box-number">{stats.activeOrganizers}</div>
           <div className="stat-box-label">Active Organizers</div>
+        </div>
+        <div className="stat-box">
+          <div className="stat-box-number">{stats.pendingPasswordResets}</div>
+          <div className="stat-box-label">Password Reset Requests</div>
         </div>
       </div>
 
@@ -76,6 +90,20 @@ function AdminDashboard() {
           <div className="dashboard-card-footer">
             <Link to="/admin/organizers" style={{ flex: 1 }}>
               <button className="btn-primary" style={{ width: '100%' }}>View All Organizers</button>
+            </Link>
+          </div>
+        </div>
+
+        <div className="dashboard-card">
+          <div className="dashboard-card-header">
+            <h3 className="dashboard-card-title">Password Reset Requests</h3>
+          </div>
+          <div className="dashboard-card-body">
+            <p>Review password reset requests from organizers, approve and generate new passwords, or reject requests.</p>
+          </div>
+          <div className="dashboard-card-footer">
+            <Link to="/admin/password-resets" style={{ flex: 1 }}>
+              <button className="btn-primary" style={{ width: '100%' }}>View Requests ({stats.pendingPasswordResets})</button>
             </Link>
           </div>
         </div>

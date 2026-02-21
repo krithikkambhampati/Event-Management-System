@@ -1,45 +1,64 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import ReCAPTCHA from "react-google-recaptcha";
 import '../styles/Auth.css';
+
+const RECAPTCHA_SITE_KEY = "6LcTYHMsAAAAAG1zZLhI8cBmrBew2GtGP18AeuS8";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const recaptchaRef = useRef(null);
 
   const { setUser } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
 
-    const res = await fetch("http://localhost:8000/api/auth/login", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-
-    const data = await res.json();
-
-    if (res.ok && data.user) {
-      setUser(data.user);
-      if (data.user.role === "ADMIN") {
-        navigate("/admin");
-      } else if (data.user.role === "ORGANIZER") {
-        navigate("/organizer");
-      } else {
-        navigate("/dashboard");
-      }
-    } else {
-      setError(data.message || "Login failed");
+    // Get reCAPTCHA token
+    const captchaToken = recaptchaRef.current?.getValue();
+    if (!captchaToken) {
+      setError("Please complete the CAPTCHA verification");
+      return;
     }
 
-    setIsLoading(false);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:8000/api/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, captchaToken })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.user) {
+        setUser(data.user);
+        if (data.user.role === "ADMIN") {
+          navigate("/admin");
+        } else if (data.user.role === "ORGANIZER") {
+          navigate("/organizer");
+        } else {
+          navigate("/dashboard");
+        }
+      } else {
+        setError(data.message || "Login failed");
+        recaptchaRef.current?.reset();
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+      recaptchaRef.current?.reset();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -66,12 +85,29 @@ function Login() {
 
           <div className="form-group">
             <label>Password</label>
-            <input
-              type="password"
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
+            <div className="password-input-wrapper">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={RECAPTCHA_SITE_KEY}
             />
           </div>
 

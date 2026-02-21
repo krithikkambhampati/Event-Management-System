@@ -5,7 +5,10 @@ import {
   listOrganizers,
   updateOrganizerStatus,
   deleteOrganizer,
-  resetOrganizerPassword
+  resetOrganizerPassword,
+  getPasswordResetRequests,
+  approvePasswordResetRequest,
+  rejectPasswordResetRequest
 } from "../controllers/admin.controller.js";
 const router = express.Router();
 
@@ -50,6 +53,27 @@ router.post(
   verifyToken,
   requireAdmin,
   resetOrganizerPassword
+);
+
+router.get(
+  "/password-resets",
+  verifyToken,
+  requireAdmin,
+  getPasswordResetRequests
+);
+
+router.post(
+  "/password-resets/:id/approve",
+  verifyToken,
+  requireAdmin,
+  approvePasswordResetRequest
+);
+
+router.post(
+  "/password-resets/:id/reject",
+  verifyToken,
+  requireAdmin,
+  rejectPasswordResetRequest
 );
 
 export default router;

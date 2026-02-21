@@ -27,8 +27,24 @@ const registrationSchema = new mongoose.Schema(
 
     participationStatus: {
       type: String,
-      enum: ["Registered", "Completed", "Cancelled"],
+      enum: ["Registered", "Pending", "Completed", "Cancelled"],
       default: "Registered"
+    },
+
+    paymentProof: {
+      type: String,
+      default: null
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["Not Required", "Pending", "Approved", "Rejected"],
+      default: "Not Required"
+    },
+
+    rejectionReason: {
+      type: String,
+      default: null
     },
 
     attendanceMarked: {

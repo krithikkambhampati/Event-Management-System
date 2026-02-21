@@ -12,8 +12,11 @@ function BrowseEvents() {
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [filterEligibility, setFilterEligibility] = useState("all");
   const [filterFollowed, setFilterFollowed] = useState("all");
   const [filterTrending, setFilterTrending] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     // Reset followed filter if user no longer has followed organizers
@@ -57,48 +60,84 @@ function BrowseEvents() {
   const getFilteredEvents = () => {
     let filtered = events;
 
+    // Event type filter
     if (filterType !== "all") {
       filtered = filtered.filter(e => e.eventType === filterType);
     }
 
+    // Eligibility filter
+    if (filterEligibility !== "all") {
+      filtered = filtered.filter(e =>
+        e.eligibility === filterEligibility || e.eligibility === "BOTH"
+      );
+    }
+
+    // Date range filter
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      filtered = filtered.filter(e => new Date(e.startDate) >= from);
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(e => new Date(e.startDate) <= to);
+    }
+
+    // Fuzzy search — includes organizer name
     if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(e =>
         e.eventName.toLowerCase().includes(query) ||
         e.description.toLowerCase().includes(query) ||
+        (e.organizer?.organizerName && e.organizer.organizerName.toLowerCase().includes(query)) ||
         (e.tags && e.tags.some(tag => tag.toLowerCase().includes(query)))
       );
     }
 
     // Apply sorting based on preference
     filtered.sort((a, b) => {
-      const followedIds = user?.followedOrganizers?.map(org => 
+      const followedIds = user?.followedOrganizers?.map(org =>
         typeof org === 'string' ? org : org._id
       ) || [];
-      
+      const userInterests = user?.interests || [];
+
       const aFollowed = followedIds.includes(a.organizer._id || a.organizer);
       const bFollowed = followedIds.includes(b.organizer._id || b.organizer);
-      
-      // Followed clubs first
-      if (aFollowed !== bFollowed) return aFollowed ? -1 : 1;
-      
+
+      // Score: followed club = +2, matching interest category = +1
+      let aScore = 0;
+      let bScore = 0;
+
+      if (aFollowed) aScore += 2;
+      if (bFollowed) bScore += 2;
+
+      // Boost events whose organizer category matches user interests
+      if (a.organizer?.category && userInterests.includes(a.organizer.category)) aScore += 1;
+      if (b.organizer?.category && userInterests.includes(b.organizer.category)) bScore += 1;
+
+      // Also boost if event tags match user interests
+      if (a.tags && a.tags.some(tag => userInterests.includes(tag))) aScore += 1;
+      if (b.tags && b.tags.some(tag => userInterests.includes(tag))) bScore += 1;
+
+      if (aScore !== bScore) return bScore - aScore;
+
       // Then by trending (most registrations)
       const aReg = a.registeredCount || 0;
       const bReg = b.registeredCount || 0;
       if (aReg !== bReg) return bReg - aReg;
-      
+
       // Then alphabetically
       return a.eventName.localeCompare(b.eventName);
     });
 
-    // Apply trending filter
+    // Apply trending filter — sort by registrations in last 24h
     if (filterTrending === "trending") {
-      filtered.sort((a, b) => (b.registeredCount || 0) - (a.registeredCount || 0));
+      filtered.sort((a, b) => (b.recentRegistrations || 0) - (a.recentRegistrations || 0));
     }
 
     // Apply followed filter
     if (filterFollowed === "followed" && user?.followedOrganizers?.length > 0) {
-      const followedIds = user.followedOrganizers.map(org => 
+      const followedIds = user.followedOrganizers.map(org =>
         typeof org === 'string' ? org : org._id
       );
       filtered = filtered.filter(e => followedIds.includes(e.organizer._id || e.organizer));
@@ -143,7 +182,7 @@ function BrowseEvents() {
         <input
           type="text"
           className="event-search-input"
-          placeholder="Search events by name, description, or tags..."
+          placeholder="Search by event name, organizer, description, or tags..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -151,7 +190,7 @@ function BrowseEvents() {
 
       <div className="event-filters">
         <div className="event-filter-group">
-          <label>Filter by Type</label>
+          <label>Event Type</label>
           <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="all">All Events</option>
             <option value="NORMAL">Normal Events</option>
@@ -160,22 +199,50 @@ function BrowseEvents() {
         </div>
 
         <div className="event-filter-group">
+          <label>Eligibility</label>
+          <select value={filterEligibility} onChange={(e) => setFilterEligibility(e.target.value)}>
+            <option value="all">Any Eligibility</option>
+            <option value="IIIT">IIIT Only</option>
+            <option value="NON_IIIT">Non-IIIT Only</option>
+            <option value="BOTH">Open to All</option>
+          </select>
+        </div>
+
+        <div className="event-filter-group">
           <label>Sort By</label>
           <select value={filterTrending} onChange={(e) => setFilterTrending(e.target.value)}>
             <option value="all">Most Relevant</option>
-            <option value="trending">Trending (Most Popular)</option>
+            <option value="trending">Trending (24h)</option>
           </select>
         </div>
 
         {user?.followedOrganizers?.length > 0 && (
           <div className="event-filter-group">
-            <label>Filter by Organizers</label>
+            <label>Organizers</label>
             <select value={filterFollowed} onChange={(e) => setFilterFollowed(e.target.value)}>
               <option value="all">All Organizers</option>
-              <option value="followed">Followed Organizers Only</option>
+              <option value="followed">Followed Only</option>
             </select>
           </div>
         )}
+
+        <div className="event-filter-group">
+          <label>From Date</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+        </div>
+
+        <div className="event-filter-group">
+          <label>To Date</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </div>
       </div>
 
       {filteredEvents.length === 0 ? (

@@ -20,7 +20,7 @@ function Navbar() {
     setUser(null);
     navigate("/login");
   };
-  
+
   if (!user) return null;
 
   return (
@@ -45,6 +45,7 @@ function Navbar() {
               <li><Link to="/admin" className={isActive("/admin") ? "active" : ""}>Dashboard</Link></li>
               <li><Link to="/admin/create-organizer" className={isActive("/admin/create-organizer") ? "active" : ""}>Create Organizer</Link></li>
               <li><Link to="/admin/organizers" className={isActive("/admin/organizers") ? "active" : ""}>Manage Organizers</Link></li>
+              <li><Link to="/admin/password-resets" className={isActive("/admin/password-resets") ? "active" : ""}>Password Resets</Link></li>
             </>
           )}
 
@@ -52,6 +53,7 @@ function Navbar() {
             <>
               <li><Link to="/organizer" className={isActive("/organizer") ? "active" : ""}>Dashboard</Link></li>
               <li><Link to="/organizer/create-event" className={isActive("/organizer/create-event") ? "active" : ""}>Create Event</Link></li>
+              <li><Link to="/organizer/ongoing-events" className={isActive("/organizer/ongoing-events") ? "active" : ""}>Ongoing Events</Link></li>
             </>
           )}
         </ul>

@@ -4,7 +4,7 @@ import { AVAILABLE_INTERESTS } from "../constants/interests";
 import "../styles/Profile.css";
 
 function OrganizerProfile() {
-  const { user, setUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -15,8 +15,11 @@ function OrganizerProfile() {
     category: "",
     description: "",
     contactEmail: "",
-    contactNumber: ""
+    contactNumber: "",
+    discordWebhook: ""
   });
+
+  const [passwordResetStatus, setPasswordResetStatus] = useState(null);
 
   // Fetch organizer data on mount
   useEffect(() => {
@@ -37,8 +40,9 @@ function OrganizerProfile() {
       }
 
       const data = await res.json();
-      
+
       if (data.success && data.organizer) {
+        setPasswordResetStatus(data.organizer.passwordResetStatus);
         setFormData({
           organizerName: data.organizer.organizerName || "",
           category: data.organizer.category || "",
@@ -79,13 +83,14 @@ function OrganizerProfile() {
       const data = await res.json();
 
       if (res.ok && data.organizer) {
-        setUser(data.organizer);
+        await refreshUser();
         setFormData({
           organizerName: data.organizer.organizerName || "",
           category: data.organizer.category || "",
           description: data.organizer.description || "",
           contactEmail: data.organizer.contactEmail || "",
-          contactNumber: data.organizer.contactNumber || ""
+          contactNumber: data.organizer.contactNumber || "",
+          discordWebhook: data.organizer.discordWebhook || ""
         });
         setIsEditing(false);
         setSuccess("Profile updated successfully!");
@@ -97,6 +102,33 @@ function OrganizerProfile() {
       setError("Error updating profile: " + err.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRequestPasswordReset = async () => {
+    setError("");
+    setSuccess("");
+
+    try {
+      const res = await fetch(
+        `http://localhost:8000/api/organizers/${user._id}/request-password-reset`,
+        {
+          method: "POST",
+          credentials: "include"
+        }
+      );
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setPasswordResetStatus("PENDING");
+        setSuccess("Request sent to admin for review");
+        setTimeout(() => setSuccess(""), 4000);
+      } else {
+        setError(data.message || "Failed to send request");
+      }
+    } catch (err) {
+      setError("Error: " + err.message);
     }
   };
 
@@ -172,6 +204,20 @@ function OrganizerProfile() {
               />
             </div>
 
+            <div className="form-group">
+              <label>Discord Webhook URL</label>
+              <input
+                type="url"
+                name="discordWebhook"
+                value={formData.discordWebhook}
+                onChange={handleChange}
+                placeholder="https://discord.com/api/webhooks/..."
+              />
+              <small style={{ color: "var(--text-light)", fontSize: "12px" }}>
+                When set, new events will be auto-posted to your Discord channel when published.
+              </small>
+            </div>
+
             <div className="button-group">
               <button type="submit" disabled={isLoading}>
                 {isLoading ? "Saving..." : "Save Changes"}
@@ -207,9 +253,31 @@ function OrganizerProfile() {
               <span className="label">Description:</span>
               <span>{user.description}</span>
             </div>
+            <div className="profile-row">
+              <span className="label">Discord Webhook:</span>
+              <span>
+                {formData.discordWebhook
+                  ? <span style={{ color: "#5865F2", fontWeight: 600 }}>✓ Connected</span>
+                  : <span style={{ color: "var(--text-light)" }}>Not configured</span>
+                }
+              </span>
+            </div>
 
             <button onClick={() => setIsEditing(true)} className="edit-button">
               Edit Profile
+            </button>
+
+            <button
+              onClick={handleRequestPasswordReset}
+              disabled={passwordResetStatus === "PENDING"}
+              className="btn-primary"
+              style={{
+                marginTop: "10px",
+                opacity: passwordResetStatus === "PENDING" ? 0.5 : 1,
+                cursor: passwordResetStatus === "PENDING" ? "not-allowed" : "pointer"
+              }}
+            >
+              {passwordResetStatus === "PENDING" ? "Request Pending..." : "Request Password Reset"}
             </button>
           </div>
         )}

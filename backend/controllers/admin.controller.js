@@ -1,3 +1,4 @@
+import bcryptjs from "bcryptjs";
 import { Organizer } from "../models/organizer.model.js";
 import { Event } from "../models/event.model.js";
 import { Participant } from "../models/participant.model.js";
@@ -36,7 +37,7 @@ export const createOrganizer = async (req, res) => {
       description,
       contactEmail,
       contactNumber
-    } = req.body || {}; 
+    } = req.body || {};
 
     if (
       !organizerName ||
@@ -96,7 +97,7 @@ export const createOrganizer = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("createOrganizer error:", error);
+    console.error("createOrganizer error:", error.message);
 
     res.status(500).json({ message: "Internal server error" });
   }
@@ -105,13 +106,13 @@ export const createOrganizer = async (req, res) => {
 export const listOrganizers = async (req, res) => {
   try {
     const organizers = await Organizer.find({})
-      .select("organizerName category contactEmail email contactNumber isActive createdAt")
+      .select("organizerName category contactEmail email contactNumber isActive createdAt passwordResetStatus")
       .sort({ createdAt: -1 })
       .lean();
 
     return res.status(200).json({ organizers });
   } catch (error) {
-    console.error("listOrganizers error:", error);
+    console.error("listOrganizers error:", error.message);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -144,7 +145,7 @@ export const updateOrganizerStatus = async (req, res) => {
       organizer
     });
   } catch (error) {
-    console.error("updateOrganizerStatus error:", error);
+    console.error("updateOrganizerStatus error:", error.message);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -179,12 +180,12 @@ export const deleteOrganizer = async (req, res) => {
     // Delete the organizer
     await Organizer.findByIdAndDelete(id);
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       message: "Organizer and all associated data (events, registrations) deleted successfully",
       deletedEventsCount: eventIds.length
     });
   } catch (error) {
-    console.error("deleteOrganizer error:", error);
+    console.error("deleteOrganizer error:", error.message);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -215,7 +216,73 @@ export const resetOrganizerPassword = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("resetOrganizerPassword error:", error);
+    console.error("resetOrganizerPassword error:", error.message);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getPasswordResetRequests = async (req, res) => {
+  try {
+    const requests = await Organizer.find({
+      passwordResetStatus: "PENDING"
+    }).select("_id organizerName email passwordResetRequestedAt");
+
+    res.status(200).json({ requests });
+  } catch (error) {
+    console.error("getPasswordResetRequests error:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const approvePasswordResetRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizer = await Organizer.findById(id);
+
+    if (!organizer) {
+      return res.status(404).json({ message: "Organizer not found" });
+    }
+
+    if (organizer.passwordResetStatus !== "PENDING") {
+      return res.status(400).json({ message: "Not a pending request" });
+    }
+
+    const newPassword = crypto.randomBytes(6).toString("hex");
+
+    organizer.password = newPassword;
+    organizer.passwordResetStatus = "APPROVED";
+    await organizer.save();
+
+    res.status(200).json({
+      message: "Password reset approved",
+      newPassword,
+      organizerEmail: organizer.email
+    });
+  } catch (error) {
+    console.error("approvePasswordResetRequest error:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const rejectPasswordResetRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizer = await Organizer.findById(id);
+
+    if (!organizer) {
+      return res.status(404).json({ message: "Organizer not found" });
+    }
+
+    if (organizer.passwordResetStatus !== "PENDING") {
+      return res.status(400).json({ message: "Not a pending request" });
+    }
+
+    organizer.passwordResetStatus = "NONE";
+    await organizer.save();
+
+    res.status(200).json({ message: "Request rejected" });
+  } catch (error) {
+    console.error("rejectPasswordResetRequest error:", error.message);
+    res.status(500).json({ message: "Internal server error" });
   }
 };

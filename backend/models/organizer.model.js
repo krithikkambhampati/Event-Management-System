@@ -50,6 +50,23 @@ const organizerSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true
+    },
+
+    passwordResetStatus: {
+      type: String,
+      enum: ["NONE", "PENDING", "APPROVED"],
+      default: "NONE"
+    },
+
+    passwordResetRequestedAt: {
+      type: Date,
+      default: null
+    },
+
+    discordWebhook: {
+      type: String,
+      default: null,
+      trim: true
     }
 
   },

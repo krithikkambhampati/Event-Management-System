@@ -3,7 +3,9 @@ import {
   handleRegisterParticipant,
   handleGetParticipantRegistrations,
   handleGetEventRegistrations,
-  handleCancelRegistration
+  handleCancelRegistration,
+  handleApprovePayment,
+  handleRejectPayment
 } from "../controllers/registration.controller.js";
 import { verifyToken, requireParticipant, requireOrganizer } from "../middleware/auth.middleware.js";
 
@@ -36,6 +38,21 @@ router.post(
   verifyToken,
   requireParticipant,
   handleCancelRegistration
+);
+
+// Payment approval routes (organizer only)
+router.post(
+  "/:registrationId/approve-payment",
+  verifyToken,
+  requireOrganizer,
+  handleApprovePayment
+);
+
+router.post(
+  "/:registrationId/reject-payment",
+  verifyToken,
+  requireOrganizer,
+  handleRejectPayment
 );
 
 export default router;

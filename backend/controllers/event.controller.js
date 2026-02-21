@@ -1,5 +1,6 @@
 import { Event } from "../models/event.model.js";
 import mongoose from "mongoose";
+import { sendDiscordWebhook } from "../utils/sendDiscordWebhook.js";
 
 export const handleCreateEvent = async (req, res) => {
   try {
@@ -15,11 +16,13 @@ export const handleCreateEvent = async (req, res) => {
       registrationLimit,
       registrationFee,
       tags,
-      customFields
+      customFields,
+      merchandiseVariants,
+      purchaseLimitPerUser
     } = req.body;
 
     if (!eventName || !description || !eventType || !registrationDeadline || !startDate || !endDate) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Missing required fields: eventName, description, eventType, registrationDeadline, startDate, endDate"
       });
     }
@@ -60,9 +63,10 @@ export const handleCreateEvent = async (req, res) => {
       registrationFee: registrationFee || 0,
       organizer: organizerId,
       tags: tags || [],
-      customFields: customFields || [],
-      status: "DRAFT", 
-      merchandiseVariants: []
+      customFields: eventType === "NORMAL" ? (customFields || []) : [],
+      status: "DRAFT",
+      merchandiseVariants: eventType === "MERCH" ? (merchandiseVariants || []) : [],
+      purchaseLimitPerUser: eventType === "MERCH" ? (purchaseLimitPerUser || 1) : 1
     });
 
     res.status(201).json({
@@ -71,7 +75,7 @@ export const handleCreateEvent = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("handleCreateEvent error:", error);
+    console.error("handleCreateEvent error:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -80,20 +84,13 @@ export const handleGetOrganizerEvents = async (req, res) => {
   try {
     const { organizerId } = req.params;
 
-    console.log("DEBUG: organizerId from params:", organizerId);
-
     if (!mongoose.Types.ObjectId.isValid(organizerId)) {
-      console.log("DEBUG: Invalid ObjectId format");
       return res.status(400).json({ message: "Invalid organizer ID format" });
     }
-
-    console.log("DEBUG: Fetching events for organizer:", organizerId);
 
     const events = await Event.find({ organizer: organizerId })
       .populate("organizer", "organizerName organizerEmail")
       .sort({ createdAt: -1 });
-
-    console.log("DEBUG: Found events:", events.length);
 
     res.status(200).json({
       message: "Events fetched successfully",
@@ -102,10 +99,9 @@ export const handleGetOrganizerEvents = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("DEBUG: handleGetOrganizerEvents error:", error);
-    console.error("DEBUG: Error stack:", error.stack);
-    res.status(500).json({ 
-      message: "Internal server error", 
+    console.error("handleGetOrganizerEvents error:", error.message);
+    res.status(500).json({
+      message: "Internal server error",
       error: error.message,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
@@ -127,7 +123,6 @@ export const handleGetSingleEvent = async (req, res) => {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    // Get registration count
     const { Registration } = await import("../models/registration.model.js");
     const registeredCount = await Registration.countDocuments({
       event: eventId,
@@ -143,19 +138,17 @@ export const handleGetSingleEvent = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("handleGetSingleEvent error:", error);
+    console.error("handleGetSingleEvent error:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 export const handleGetPublishedEvents = async (req, res) => {
   try {
-    // Get all published events (public endpoint for participants)
     const events = await Event.find({ status: "PUBLISHED" })
-      .populate("organizer", "organizerName organizerEmail")
+      .populate("organizer", "organizerName organizerEmail category")
       .sort({ createdAt: -1 });
 
-    // Add registration counts to each event
     const { Registration } = await import("../models/registration.model.js");
     const eventsWithCounts = await Promise.all(
       events.map(async (event) => {
@@ -163,8 +156,14 @@ export const handleGetPublishedEvents = async (req, res) => {
           event: event._id,
           participationStatus: { $ne: "Cancelled" }
         });
+        const recentRegistrations = await Registration.countDocuments({
+          event: event._id,
+          participationStatus: { $ne: "Cancelled" },
+          registeredAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+        });
         const eventData = event.toObject();
         eventData.registeredCount = registeredCount;
+        eventData.recentRegistrations = recentRegistrations;
         return eventData;
       })
     );
@@ -176,7 +175,7 @@ export const handleGetPublishedEvents = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("handleGetPublishedEvents error:", error);
+    console.error("handleGetPublishedEvents error:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -206,16 +205,28 @@ export const handleUpdateEvent = async (req, res) => {
       event.registrationLimit = updateData.registrationLimit !== undefined ? updateData.registrationLimit : event.registrationLimit;
       event.registrationFee = updateData.registrationFee !== undefined ? updateData.registrationFee : event.registrationFee;
       event.tags = updateData.tags || event.tags;
-    } 
+
+      if (updateData.customFields !== undefined) {
+        const { Registration } = await import("../models/registration.model.js");
+        const regCount = await Registration.countDocuments({ event: event._id, participationStatus: { $ne: "Cancelled" } });
+        if (regCount > 0) {
+          return res.status(400).json({ message: "Custom fields cannot be modified after registrations have been received.", formLocked: true });
+        }
+        event.customFields = updateData.customFields;
+      }
+
+      if (updateData.merchandiseVariants !== undefined) event.merchandiseVariants = updateData.merchandiseVariants;
+      if (updateData.purchaseLimitPerUser !== undefined) event.purchaseLimitPerUser = updateData.purchaseLimitPerUser;
+    }
     else if (event.status === "PUBLISHED") {
       if (updateData.description) event.description = updateData.description;
       if (updateData.registrationDeadline) event.registrationDeadline = updateData.registrationDeadline;
       if (updateData.registrationLimit !== undefined) event.registrationLimit = updateData.registrationLimit;
-    } 
+    }
     else if (["ONGOING", "COMPLETED", "CLOSED"].includes(event.status)) {
       if (!updateData.status) {
-        return res.status(400).json({ 
-          message: `Cannot edit ${event.status} events. Only status changes allowed.` 
+        return res.status(400).json({
+          message: `Cannot edit ${event.status} events. Only status changes allowed.`
         });
       }
       event.status = updateData.status;
@@ -241,7 +252,7 @@ export const handleUpdateEvent = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("handleUpdateEvent error:", error);
+    console.error("handleUpdateEvent error:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -260,7 +271,7 @@ export const handlePublishEvent = async (req, res) => {
     }
 
     if (event.status !== "DRAFT") {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: `Cannot publish ${event.status} event. Only DRAFT events can be published.`
       });
     }
@@ -268,13 +279,23 @@ export const handlePublishEvent = async (req, res) => {
     event.status = "PUBLISHED";
     await event.save();
 
+    try {
+      const { Organizer } = await import("../models/organizer.model.js");
+      const organizer = await Organizer.findById(event.organizer).select("organizerName discordWebhook");
+      if (organizer?.discordWebhook) {
+        sendDiscordWebhook(organizer.discordWebhook, event, organizer.organizerName);
+      }
+    } catch (webhookErr) {
+      console.warn("Discord webhook lookup failed:", webhookErr.message);
+    }
+
     res.status(200).json({
       message: "Event published successfully",
       event
     });
 
   } catch (error) {
-    console.error("handlePublishEvent error:", error);
+    console.error("handlePublishEvent error:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };

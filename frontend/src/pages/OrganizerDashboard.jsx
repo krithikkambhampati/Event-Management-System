@@ -232,7 +232,7 @@ function OrganizerDashboard() {
                   View Details
                 </button>
 
-                {event.status === "PUBLISHED" && (
+                {(event.status === "PUBLISHED" || event.status === "ONGOING") && (
                   <button
                     className="btn-secondary"
                     onClick={() => navigate(`/organizer/events/${event._id}/registrations`)}

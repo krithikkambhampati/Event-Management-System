@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import '../styles/Event.css';
 
 function BrowseOrganizers() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [organizers, setOrganizers] = useState([]);
   const [followedOrganizers, setFollowedOrganizers] = useState([]);
@@ -189,7 +191,7 @@ function BrowseOrganizers() {
           <div className="event-list">
             {filteredOrganizers.map(organizer => {
               const isFollowing = followedOrganizers.includes(organizer._id);
-              
+
               return (
                 <div key={organizer._id} className="event-card">
                   <div className="event-card-header">
@@ -224,17 +226,24 @@ function BrowseOrganizers() {
                     </div>
 
                     {user?.role === "PARTICIPANT" && (
-                      <div style={{ marginTop: 'var(--spacing-md)' }}>
+                      <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-sm)' }}>
+                        <button
+                          onClick={() => navigate(`/organizers/${organizer._id}`)}
+                          className="btn-secondary"
+                          style={{ flex: 1 }}
+                        >
+                          View Details
+                        </button>
                         <button
                           onClick={() => handleFollowToggle(organizer._id, organizer.organizerName, isFollowing)}
                           disabled={actionLoading === organizer._id}
                           className={isFollowing ? "btn-secondary" : "btn-primary"}
-                          style={{ width: '100%' }}
+                          style={{ flex: 1 }}
                         >
-                          {actionLoading === organizer._id 
-                            ? "Processing..." 
-                            : isFollowing 
-                              ? "Unfollow" 
+                          {actionLoading === organizer._id
+                            ? "Processing..."
+                            : isFollowing
+                              ? "Unfollow"
                               : "Follow"}
                         </button>
                       </div>

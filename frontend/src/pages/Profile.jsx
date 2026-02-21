@@ -4,7 +4,7 @@ import { AVAILABLE_INTERESTS } from "../constants/interests";
 import "../styles/Profile.css";
 
 function Profile() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -91,7 +91,7 @@ function Profile() {
       const data = await res.json();
 
       if (res.ok) {
-        setUser(data.user);
+        await refreshUser();
         setIsEditing(false);
         setSuccess("Profile updated successfully!");
         window.scrollTo(0, 0);
@@ -167,7 +167,7 @@ function Profile() {
 
       if (res.ok) {
         setSuccess("Organizer unfollowed!");
-        setUser(data.user);
+        await refreshUser();
         setFollowedOrganizers(followedOrganizers.filter(org => org._id !== organizerId));
         window.scrollTo(0, 0);
         setTimeout(() => setSuccess(""), 3000);

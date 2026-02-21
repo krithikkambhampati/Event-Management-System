@@ -20,7 +20,8 @@ function CreateEvent() {
     endTime: "11:00",
     registrationLimit: "",
     registrationFee: 0,
-    tags: ""
+    tags: "",
+    purchaseLimitPerUser: 1
   });
 
   const [loading, setLoading] = useState(false);
@@ -36,13 +37,34 @@ function CreateEvent() {
     options: ""
   });
 
+  // Merchandise variants
+  const [merchandiseVariants, setMerchandiseVariants] = useState([]);
+  const [newVariant, setNewVariant] = useState({ name: "", size: "", color: "", stock: "" });
+
+  const addVariant = () => {
+    if (!newVariant.name.trim()) { setError("Variant name is required"); return; }
+    if (!newVariant.stock || newVariant.stock <= 0) { setError("Stock must be greater than 0"); return; }
+    setMerchandiseVariants([...merchandiseVariants, {
+      name: newVariant.name.trim(),
+      size: newVariant.size.trim() || undefined,
+      color: newVariant.color.trim() || undefined,
+      stock: parseInt(newVariant.stock)
+    }]);
+    setNewVariant({ name: "", size: "", color: "", stock: "" });
+    setError("");
+  };
+
+  const removeVariant = (index) => {
+    setMerchandiseVariants(merchandiseVariants.filter((_, i) => i !== index));
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
       [name]: value
     });
-    setError(""); 
+    setError("");
   };
 
   const addCustomField = () => {
@@ -65,6 +87,14 @@ function CreateEvent() {
 
   const removeCustomField = (index) => {
     setCustomFields(customFields.filter((_, i) => i !== index));
+  };
+
+  const moveCustomField = (index, direction) => {
+    const newFields = [...customFields];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newFields.length) return;
+    [newFields[index], newFields[targetIndex]] = [newFields[targetIndex], newFields[index]];
+    setCustomFields(newFields);
   };
 
   const validateForm = () => {
@@ -107,6 +137,11 @@ function CreateEvent() {
       return false;
     }
 
+    if (formData.eventType === "MERCH" && merchandiseVariants.length === 0) {
+      setError("At least one merchandise variant is required for merchandise events");
+      return false;
+    }
+
     return true;
   };
 
@@ -126,13 +161,13 @@ function CreateEvent() {
         .map(tag => tag.trim())
         .filter(tag => tag.length > 0);
 
-      const registrationDeadline = formData.registrationDeadline 
+      const registrationDeadline = formData.registrationDeadline
         ? `${formData.registrationDeadline}T${formData.registrationDeadlineTime}`
         : "";
-      const startDate = formData.startDate 
+      const startDate = formData.startDate
         ? `${formData.startDate}T${formData.startTime}`
         : "";
-      const endDate = formData.endDate 
+      const endDate = formData.endDate
         ? `${formData.endDate}T${formData.endTime}`
         : "";
 
@@ -147,7 +182,9 @@ function CreateEvent() {
         registrationLimit: formData.registrationLimit ? parseInt(formData.registrationLimit) : null,
         registrationFee: formData.registrationFee ? parseInt(formData.registrationFee) : 0,
         tags: tagsArray,
-        customFields: customFields
+        customFields: formData.eventType === "NORMAL" ? customFields : [],
+        merchandiseVariants: formData.eventType === "MERCH" ? merchandiseVariants : [],
+        purchaseLimitPerUser: formData.eventType === "MERCH" ? parseInt(formData.purchaseLimitPerUser) || 1 : 1
       };
 
       const res = await fetch(
@@ -182,7 +219,8 @@ function CreateEvent() {
         endTime: "11:00",
         registrationLimit: "",
         registrationFee: 0,
-        tags: ""
+        tags: "",
+        purchaseLimitPerUser: 1
       });
 
       setTimeout(() => {
@@ -212,7 +250,7 @@ function CreateEvent() {
       <form onSubmit={handleCreateEvent} className="create-form">
         <div className="form-section">
           <div className="form-section-title">Basic Information</div>
-          
+
           <div className="form-group form-row full">
             <label>
               Event Name *
@@ -363,7 +401,7 @@ function CreateEvent() {
 
             <div className="form-group">
               <label>
-                Registration Fee (₹)
+                {formData.eventType === "MERCH" ? "Price (Rs.)" : "Registration Fee (Rs.)"}
                 <input
                   type="number"
                   name="registrationFee"
@@ -372,7 +410,7 @@ function CreateEvent() {
                   onChange={handleChange}
                 />
               </label>
-              <p className="form-help-text">Leave blank or enter 0 for free event</p>
+              <p className="form-help-text">{formData.eventType === "MERCH" ? "Set the price for this merchandise" : "Leave blank or enter 0 for free event"}</p>
             </div>
           </div>
 
@@ -391,75 +429,175 @@ function CreateEvent() {
           </div>
         </div>
 
-        <div className="form-section">
-          <div className="form-section-title">Registration Form Fields</div>
-          <p className="form-help-text">Add custom fields for participant information</p>
+        {/* Merchandise Variants Section — only for MERCH events */}
+        {formData.eventType === "MERCH" && (
+          <div className="form-section">
+            <div className="form-section-title">Merchandise Variants</div>
+            <p className="form-help-text">Add product variants (e.g., sizes, colors) with stock quantities</p>
 
-          <div style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-lg)', background: 'var(--background)', borderRadius: 'var(--radius-md)' }}>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Field Label
-                  <input
-                    type="text"
-                    placeholder="e.g., Phone Number, Dietary Preference"
-                    value={newField.fieldLabel}
-                    onChange={(e) => setNewField({ ...newField, fieldLabel: e.target.value })}
-                  />
-                </label>
+            <div style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-lg)', background: 'var(--background)', borderRadius: 'var(--radius-md)' }}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Variant Name
+                    <input
+                      type="text"
+                      placeholder="e.g., T-Shirt, Hoodie, Kit"
+                      value={newVariant.name}
+                      onChange={(e) => setNewVariant({ ...newVariant, name: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label>Size (optional)
+                    <input
+                      type="text"
+                      placeholder="e.g., S, M, L, XL"
+                      value={newVariant.size}
+                      onChange={(e) => setNewVariant({ ...newVariant, size: e.target.value })}
+                    />
+                  </label>
+                </div>
               </div>
-              <div className="form-group">
-                <label>Field Type
-                  <select value={newField.fieldType} onChange={(e) => setNewField({ ...newField, fieldType: e.target.value })}>
-                    <option value="TEXT">Text</option>
-                    <option value="EMAIL">Email</option>
-                    <option value="NUMBER">Number</option>
-                    <option value="DROPDOWN">Dropdown</option>
-                    <option value="CHECKBOX">Checkbox</option>
-                  </select>
-                </label>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Color (optional)
+                    <input
+                      type="text"
+                      placeholder="e.g., Red, Blue, Black"
+                      value={newVariant.color}
+                      onChange={(e) => setNewVariant({ ...newVariant, color: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className="form-group">
+                  <label>Stock Quantity
+                    <input
+                      type="number"
+                      placeholder="e.g., 50"
+                      min="1"
+                      value={newVariant.stock}
+                      onChange={(e) => setNewVariant({ ...newVariant, stock: e.target.value })}
+                    />
+                  </label>
+                </div>
               </div>
+              <button type="button" onClick={addVariant} style={{ padding: 'var(--spacing-sm) var(--spacing-lg)', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>
+                Add Variant
+              </button>
             </div>
 
-            {(newField.fieldType === "DROPDOWN" || newField.fieldType === "CHECKBOX") && (
-              <div className="form-group form-row full">
-                <label>Options (comma-separated)
-                  <input
-                    type="text"
-                    placeholder="e.g., Option 1, Option 2, Option 3"
-                    value={newField.options}
-                    onChange={(e) => setNewField({ ...newField, options: e.target.value })}
-                  />
-                </label>
+            {merchandiseVariants.length > 0 && (
+              <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+                <h4 style={{ marginBottom: 'var(--spacing-md)' }}>Added Variants ({merchandiseVariants.length})</h4>
+                {merchandiseVariants.map((v, idx) => (
+                  <div key={idx} style={{ padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-sm)', background: 'var(--background)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>{v.name}</strong>
+                      {v.size && <span style={{ color: 'var(--text-light)', fontSize: '13px' }}> — Size: {v.size}</span>}
+                      {v.color && <span style={{ color: 'var(--text-light)', fontSize: '13px' }}> — Color: {v.color}</span>}
+                      <span> — Stock: {v.stock}</span>
+                    </div>
+                    <button type="button" onClick={() => removeVariant(idx)} style={{ padding: 'var(--spacing-xs) var(--spacing-md)', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
-              <label style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center', margin: 0 }}>
-                <input type="checkbox" checked={newField.required} onChange={(e) => setNewField({ ...newField, required: e.target.checked })} />
-                <span>Required Field</span>
-              </label>
-              <button type="button" onClick={addCustomField} style={{ padding: 'var(--spacing-sm) var(--spacing-lg)', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>
-                Add Field
-              </button>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Purchase Limit Per User
+                  <input
+                    type="number"
+                    name="purchaseLimitPerUser"
+                    min="1"
+                    value={formData.purchaseLimitPerUser}
+                    onChange={handleChange}
+                  />
+                </label>
+                <p className="form-help-text">Max items a single user can purchase</p>
+              </div>
             </div>
           </div>
+        )}
 
-          {customFields.length > 0 && (
-            <div>
-              <h4 style={{ marginBottom: 'var(--spacing-md)' }}>Added Fields ({customFields.length})</h4>
-              {customFields.map((field, idx) => (
-                <div key={idx} style={{ padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-sm)', background: 'var(--background)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <strong>{field.fieldLabel}</strong> ({field.fieldType}){field.required && <span style={{ color: 'red' }}>*</span>}
-                  </div>
-                  <button type="button" onClick={() => removeCustomField(idx)} style={{ padding: 'var(--spacing-xs) var(--spacing-md)', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>
-                    Remove
-                  </button>
+        {/* Custom Fields Section — only for NORMAL events */}
+        {formData.eventType === "NORMAL" && (
+          <div className="form-section">
+            <div className="form-section-title">Registration Form Fields</div>
+            <p className="form-help-text">Add custom fields for participant information</p>
+
+            <div style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-lg)', background: 'var(--background)', borderRadius: 'var(--radius-md)' }}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Field Label
+                    <input
+                      type="text"
+                      placeholder="e.g., Phone Number, Dietary Preference"
+                      value={newField.fieldLabel}
+                      onChange={(e) => setNewField({ ...newField, fieldLabel: e.target.value })}
+                    />
+                  </label>
                 </div>
-              ))}
+                <div className="form-group">
+                  <label>Field Type
+                    <select value={newField.fieldType} onChange={(e) => setNewField({ ...newField, fieldType: e.target.value })}>
+                      <option value="TEXT">Text</option>
+                      <option value="EMAIL">Email</option>
+                      <option value="NUMBER">Number</option>
+                      <option value="DROPDOWN">Dropdown</option>
+                      <option value="CHECKBOX">Checkbox</option>
+                      <option value="FILE_UPLOAD">File Upload</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              {(newField.fieldType === "DROPDOWN" || newField.fieldType === "CHECKBOX") && (
+                <div className="form-group form-row full">
+                  <label>Options (comma-separated)
+                    <input
+                      type="text"
+                      placeholder="e.g., Option 1, Option 2, Option 3"
+                      value={newField.options}
+                      onChange={(e) => setNewField({ ...newField, options: e.target.value })}
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
+                <label style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center', margin: 0 }}>
+                  <input type="checkbox" checked={newField.required} onChange={(e) => setNewField({ ...newField, required: e.target.checked })} />
+                  <span>Required Field</span>
+                </label>
+                <button type="button" onClick={addCustomField} style={{ padding: 'var(--spacing-sm) var(--spacing-lg)', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer' }}>
+                  Add Field
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+
+            {customFields.length > 0 && (
+              <div>
+                <h4 style={{ marginBottom: 'var(--spacing-md)' }}>Added Fields ({customFields.length})</h4>
+                {customFields.map((field, idx) => (
+                  <div key={idx} style={{ padding: 'var(--spacing-md)', marginBottom: 'var(--spacing-sm)', background: 'var(--background)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-light)', fontSize: '13px', minWidth: '22px' }}>{idx + 1}.</span>
+                      <strong>{field.fieldLabel}</strong> <span style={{ color: 'var(--text-light)', fontSize: '13px' }}>({field.fieldType})</span>{field.required && <span style={{ color: 'red' }}>*</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button type="button" onClick={() => moveCustomField(idx, -1)} disabled={idx === 0} style={{ padding: '4px 8px', background: idx === 0 ? 'var(--border)' : 'var(--primary-light)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: idx === 0 ? 'default' : 'pointer', fontSize: '12px' }} title="Move Up">↑</button>
+                      <button type="button" onClick={() => moveCustomField(idx, 1)} disabled={idx === customFields.length - 1} style={{ padding: '4px 8px', background: idx === customFields.length - 1 ? 'var(--border)' : 'var(--primary-light)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: idx === customFields.length - 1 ? 'default' : 'pointer', fontSize: '12px' }} title="Move Down">↓</button>
+                      <button type="button" onClick={() => removeCustomField(idx)} style={{ padding: '4px 8px', background: '#ff6b6b', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="form-actions">
           <button

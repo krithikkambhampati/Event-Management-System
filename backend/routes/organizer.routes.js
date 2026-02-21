@@ -5,7 +5,8 @@ import {
   handleFollowOrganizer, 
   handleUnfollowOrganizer,
   handleGetFollowedOrganizers,
-  handleUpdateOrganizerProfile
+  handleUpdateOrganizerProfile,
+  handleRequestPasswordReset
 } from "../controllers/organizer.controller.js";
 import { verifyToken, requireParticipant, requireOrganizer } from "../middleware/auth.middleware.js";
 
@@ -21,6 +22,9 @@ router.get("/followed/my-organizers", verifyToken, requireParticipant, handleGet
 
 // Organizer-only routes - update profile
 router.put("/:id", verifyToken, requireOrganizer, handleUpdateOrganizerProfile);
+
+// Organizer password reset request
+router.post("/:id/request-password-reset", verifyToken, requireOrganizer, handleRequestPasswordReset);
 
 // Get single organizer by ID (must come last so specific routes match first)
 router.get("/:id", handleGetOrganizerById);

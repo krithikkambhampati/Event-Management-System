@@ -8,6 +8,7 @@ import OrganizerProfile from "../pages/OrganizerProfile";
 import MainLayout from "../layout/MainLayout";
 import ProtectedRoute from "../components/ProtectedRoute";
 import AdminDashboard from "../pages/AdminDashboard";
+import AdminPasswordResets from "../pages/AdminPasswordResets";
 import OrganizerDashboard from "../pages/OrganizerDashboard";
 import CreateOrganizer from "../pages/CreateOrganizer";
 import OrganizerList from "../pages/OrganizerList";
@@ -17,6 +18,8 @@ import ParticipationHistory from "../pages/ParticipationHistory";
 import BrowseEvents from "../pages/BrowseEvents";
 import BrowseOrganizers from "../pages/BrowseOrganizers";
 import EventRegistrations from "../pages/EventRegistrations";
+import OrganizerDetails from "../pages/OrganizerDetails";
+import OrganizerOngoingEvents from "../pages/OrganizerOngoingEvents";
 
 function AppRoutes() {
 	const { user, loading } = useAuth();
@@ -35,8 +38,8 @@ function AppRoutes() {
 					user ? (
 						user.role === "ADMIN" ? (
 							<Navigate to="/admin" />
-						) : user.role === "ORGANIZER" ? ( 
-							<Navigate to="/organizer" /> 
+						) : user.role === "ORGANIZER" ? (
+							<Navigate to="/organizer" />
 						) : (
 							<Navigate to="/dashboard" />
 						)
@@ -99,11 +102,31 @@ function AppRoutes() {
 				}
 			/>
 			<Route
+				path="/organizers/:id"
+				element={
+					<ProtectedRoute allowedRoles={["PARTICIPANT"]}>
+						<MainLayout>
+							<OrganizerDetails />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
 				path="/admin"
 				element={
 					<ProtectedRoute allowedRoles={["ADMIN"]}>
 						<MainLayout>
 							<AdminDashboard />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/admin/password-resets"
+				element={
+					<ProtectedRoute allowedRoles={["ADMIN"]}>
+						<MainLayout>
+							<AdminPasswordResets />
 						</MainLayout>
 					</ProtectedRoute>
 				}
@@ -144,6 +167,16 @@ function AppRoutes() {
 					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
 						<MainLayout>
 							<OrganizerProfile />
+						</MainLayout>
+					</ProtectedRoute>
+				}
+			/>
+			<Route
+				path="/organizer/ongoing-events"
+				element={
+					<ProtectedRoute allowedRoles={["ORGANIZER"]}>
+						<MainLayout>
+							<OrganizerOngoingEvents />
 						</MainLayout>
 					</ProtectedRoute>
 				}

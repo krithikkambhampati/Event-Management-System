@@ -7,18 +7,20 @@ const customFieldSchema = new mongoose.Schema({
   },
   fieldType: {
     type: String,
-    enum: ["TEXT", "NUMBER", "EMAIL", "DROPDOWN", "CHECKBOX", "FILE"],
+    enum: ["TEXT", "NUMBER", "EMAIL", "DROPDOWN", "CHECKBOX", "FILE", "FILE_UPLOAD"],
     required: true
   },
   required: {
     type: Boolean,
     default: false
   },
-  options: [String] // for drop down or checkbx
+  options: [String]
 }, { _id: false });
 
 const merchandiseVariantSchema = new mongoose.Schema({
-  name: String,        
+  name: String,
+  size: String,
+  color: String,
   stock: Number
 }, { _id: false });
 

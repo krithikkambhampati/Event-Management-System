@@ -2,18 +2,25 @@ import { Participant } from "../models/participant.model.js";
 import { Admin } from "../models/admin.model.js";
 import { generateToken } from "../utils/generateToken.js";
 import { Organizer } from "../models/organizer.model.js";
+import { verifyCaptcha } from "../utils/verifyCaptcha.js";
 import mongoose from "mongoose";
 
 export const handleLogin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, captchaToken } = req.body;
+
+    // Verify reCAPTCHA
+    const captchaResult = await verifyCaptcha(captchaToken);
+    if (!captchaResult.success) {
+      return res.status(400).json({ message: captchaResult.message });
+    }
 
     let user;
     let role;
 
     const admin = await Admin.findOne({ email });
     if (admin) {
-      const isMatch = (admin.password===password)
+      const isMatch = (admin.password === password)
       if (!isMatch) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
@@ -22,7 +29,7 @@ export const handleLogin = async (req, res) => {
       role = "ADMIN";
     }
     if (!user) {
-      const organizer = await Organizer.findOne({email });
+      const organizer = await Organizer.findOne({ email });
 
       if (organizer) {
         if (!organizer.isActive) {
@@ -78,6 +85,8 @@ export const handleLogin = async (req, res) => {
       userResponse.contactNumber = user.contactNumber;
       userResponse.participantType = user.participantType;
       userResponse.interests = user.interests;
+      userResponse.hasCompletedOnboarding = user.hasCompletedOnboarding;
+      userResponse.followedOrganizers = user.followedOrganizers;
     } else if (role === "ORGANIZER") {
       userResponse.organizerName = user.organizerName;
       userResponse.category = user.category;

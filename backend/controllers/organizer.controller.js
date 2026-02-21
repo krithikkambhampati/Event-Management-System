@@ -2,7 +2,6 @@ import { Organizer } from "../models/organizer.model.js";
 import { Participant } from "../models/participant.model.js";
 import { VALID_INTERESTS } from "../constants/interests.js";
 
-// Get all organizers (public)
 export const handleGetAllOrganizers = async (req, res) => {
   try {
     const organizers = await Organizer.find()
@@ -14,7 +13,7 @@ export const handleGetAllOrganizers = async (req, res) => {
       organizers
     });
   } catch (error) {
-    console.error("handleGetAllOrganizers error:", error);
+    console.error("handleGetAllOrganizers error:", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch organizers"
@@ -40,7 +39,7 @@ export const handleGetOrganizerById = async (req, res) => {
       organizer
     });
   } catch (error) {
-    console.error("handleGetOrganizerById error:", error);
+    console.error("handleGetOrganizerById error:", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch organizer"
@@ -48,13 +47,11 @@ export const handleGetOrganizerById = async (req, res) => {
   }
 };
 
-// Follow an organizer
 export const handleFollowOrganizer = async (req, res) => {
   try {
     const { organizerId } = req.params;
     const participantId = req.user.id;
 
-    // Check if organizer exists
     const organizer = await Organizer.findById(organizerId);
     if (!organizer) {
       return res.status(404).json({
@@ -63,7 +60,6 @@ export const handleFollowOrganizer = async (req, res) => {
       });
     }
 
-    // Check if already following
     const participant = await Participant.findById(participantId);
     if (participant.followedOrganizers.includes(organizerId)) {
       return res.status(400).json({
@@ -72,7 +68,6 @@ export const handleFollowOrganizer = async (req, res) => {
       });
     }
 
-    // Add to followedOrganizers
     participant.followedOrganizers.push(organizerId);
     await participant.save();
 
@@ -93,7 +88,7 @@ export const handleFollowOrganizer = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("handleFollowOrganizer error:", error);
+    console.error("handleFollowOrganizer error:", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to follow organizer"
@@ -138,7 +133,7 @@ export const handleUnfollowOrganizer = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("handleUnfollowOrganizer error:", error);
+    console.error("handleUnfollowOrganizer error:", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to unfollow organizer"
@@ -159,7 +154,7 @@ export const handleGetFollowedOrganizers = async (req, res) => {
       followedOrganizers: participant.followedOrganizers || []
     });
   } catch (error) {
-    console.error("handleGetFollowedOrganizers error:", error);
+    console.error("handleGetFollowedOrganizers error:", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch followed organizers"
@@ -173,7 +168,6 @@ export const handleUpdateOrganizerProfile = async (req, res) => {
     const { id } = req.params;
     const organizerId = req.user.id;
 
-    // Verify organizer is updating their own profile
     if (id !== organizerId) {
       return res.status(403).json({
         success: false,
@@ -181,9 +175,8 @@ export const handleUpdateOrganizerProfile = async (req, res) => {
       });
     }
 
-    const { organizerName, category, description, contactEmail, contactNumber } = req.body;
+    const { organizerName, category, description, contactEmail, contactNumber, discordWebhook } = req.body;
 
-    // Validate required fields
     if (!organizerName || !category || !contactEmail || !contactNumber) {
       return res.status(400).json({
         success: false,
@@ -191,12 +184,23 @@ export const handleUpdateOrganizerProfile = async (req, res) => {
       });
     }
 
-    // Validate category
     if (!VALID_INTERESTS.includes(category)) {
       return res.status(400).json({
         success: false,
         message: "Invalid organizer category. Please select a valid category."
       });
+    }
+
+    if (discordWebhook && discordWebhook.trim() !== "") {
+      const isValidWebhook =
+        discordWebhook.startsWith("https://discord.com/api/webhooks/") ||
+        discordWebhook.startsWith("https://discordapp.com/api/webhooks/");
+      if (!isValidWebhook) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid Discord webhook URL. Must start with https://discord.com/api/webhooks/"
+        });
+      }
     }
 
     const organizer = await Organizer.findByIdAndUpdate(
@@ -206,7 +210,8 @@ export const handleUpdateOrganizerProfile = async (req, res) => {
         category,
         description,
         contactEmail,
-        contactNumber
+        contactNumber,
+        discordWebhook: discordWebhook && discordWebhook.trim() !== "" ? discordWebhook.trim() : null
       },
       { returnDocument: 'after' }
     ).select('-password');
@@ -229,14 +234,47 @@ export const handleUpdateOrganizerProfile = async (req, res) => {
         category: organizer.category,
         description: organizer.description,
         contactEmail: organizer.contactEmail,
-        contactNumber: organizer.contactNumber
+        contactNumber: organizer.contactNumber,
+        discordWebhook: organizer.discordWebhook || null
       }
     });
   } catch (error) {
-    console.error("handleUpdateOrganizerProfile error:", error);
+    console.error("handleUpdateOrganizerProfile error:", error.message);
     return res.status(500).json({
       success: false,
       message: "Failed to update organizer profile"
     });
+  }
+};
+
+export const handleRequestPasswordReset = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const organizerId = req.user.id;
+
+    if (id !== organizerId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const organizer = await Organizer.findById(id);
+    if (!organizer) {
+      return res.status(404).json({ message: "Organizer not found" });
+    }
+
+    if (organizer.passwordResetStatus === "PENDING") {
+      return res.status(400).json({ message: "Request already pending" });
+    }
+
+    organizer.passwordResetStatus = "PENDING";
+    organizer.passwordResetRequestedAt = new Date();
+    await organizer.save();
+
+    res.status(200).json({
+      message: "Password reset request sent to admin",
+      status: "PENDING"
+    });
+  } catch (error) {
+    console.error("handleRequestPasswordReset error:", error.message);
+    res.status(500).json({ message: "Internal server error" });
   }
 };

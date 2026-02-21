@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { QRCodeSVG } from "qrcode.react";
+import DiscussionForum from "../components/DiscussionForum";
 import '../styles/EventDetails.css';
 
 function EventDetails() {
@@ -14,11 +16,20 @@ function EventDetails() {
   const [success, setSuccess] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState({});
-  
-  const [registrationStatus, setRegistrationStatus] = useState(null); // null, "registered", "not-registered"
-  const [registrationData, setRegistrationData] = useState(null); // stores ticket info if registered
+
+  const [registrationStatus, setRegistrationStatus] = useState(null);
+  const [registrationData, setRegistrationData] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [customFieldResponses, setCustomFieldResponses] = useState({});
+  const [selectedVariant, setSelectedVariant] = useState("");
+  const [paymentProofUrl, setPaymentProofUrl] = useState("");
+  const [uploadingProof, setUploadingProof] = useState(false);
+
+  // Edit-mode state for custom fields and merchandise variants
+  const [editCustomFields, setEditCustomFields] = useState([]);
+  const [editNewField, setEditNewField] = useState({ fieldLabel: "", fieldType: "TEXT", required: false, options: "" });
+  const [editMerchVariants, setEditMerchVariants] = useState([]);
+  const [editNewVariant, setEditNewVariant] = useState({ name: "", stock: "" });
 
   const fetchEventDetails = async () => {
     setLoading(true);
@@ -50,8 +61,11 @@ function EventDetails() {
         endDate: data.event.endDate,
         registrationLimit: data.event.registrationLimit || "",
         registrationFee: data.event.registrationFee || 0,
-        tags: data.event.tags ? data.event.tags.join(", ") : ""
+        tags: data.event.tags ? data.event.tags.join(", ") : "",
+        purchaseLimitPerUser: data.event.purchaseLimitPerUser || 1
       });
+      setEditCustomFields(data.event.customFields || []);
+      setEditMerchVariants(data.event.merchandiseVariants || []);
     } catch (err) {
       setError(err.message || "Failed to fetch event");
     } finally {
@@ -69,7 +83,7 @@ function EventDetails() {
     const { name, value } = e.target;
     setEditFormData(prev => ({
       ...prev,
-      [name]: name === "registrationLimit" || name === "registrationFee" 
+      [name]: name === "registrationLimit" || name === "registrationFee"
         ? (value === "" ? "" : Number(value))
         : value
     }));
@@ -85,7 +99,10 @@ function EventDetails() {
         tags: editFormData.tags
           .split(",")
           .map(tag => tag.trim())
-          .filter(tag => tag !== "")
+          .filter(tag => tag !== ""),
+        customFields: editFormData.eventType === "NORMAL" ? editCustomFields : [],
+        merchandiseVariants: editFormData.eventType === "MERCH" ? editMerchVariants : [],
+        purchaseLimitPerUser: editFormData.eventType === "MERCH" ? parseInt(editFormData.purchaseLimitPerUser) || 1 : 1
       };
 
       const res = await fetch(
@@ -131,10 +148,14 @@ function EventDetails() {
       const data = await res.json();
 
       if (res.ok) {
-        const alreadyRegistered = data.registrations.find(r => r.event._id === eventId);
-        if (alreadyRegistered) {
-          setRegistrationStatus("registered");
-          setRegistrationData(alreadyRegistered);
+        const existing = data.registrations.find(r => r.event._id === eventId && r.participationStatus !== "Cancelled");
+        if (existing) {
+          if (existing.participationStatus === "Pending") {
+            setRegistrationStatus("pending");
+          } else {
+            setRegistrationStatus("registered");
+          }
+          setRegistrationData(existing);
         } else {
           setRegistrationStatus("not-registered");
         }
@@ -152,7 +173,25 @@ function EventDetails() {
       return;
     }
 
-    if (event.customFields && event.customFields.length > 0) {
+    // Validate MERCH variant selection + payment proof
+    if (event.eventType === "MERCH") {
+      if (!selectedVariant) {
+        setError("Please select a merchandise variant");
+        return;
+      }
+      const variant = event.merchandiseVariants.find(v => v.name === selectedVariant);
+      if (!variant || variant.stock <= 0) {
+        setError("Selected variant is out of stock");
+        return;
+      }
+      if (!paymentProofUrl) {
+        setError("Please upload payment proof before purchasing");
+        return;
+      }
+    }
+
+    // Validate NORMAL custom fields
+    if (event.eventType === "NORMAL" && event.customFields && event.customFields.length > 0) {
       for (const field of event.customFields) {
         if (field.required && !customFieldResponses[field.fieldLabel]) {
           setError(`${field.fieldLabel} is required`);
@@ -166,15 +205,17 @@ function EventDetails() {
     setSuccess("");
 
     try {
+      const regPayload = event.eventType === "MERCH"
+        ? { registrationData: { selectedVariant, paymentProof: paymentProofUrl } }
+        : { registrationData: customFieldResponses };
+
       const res = await fetch(
         `http://localhost:8000/api/registrations/${eventId}/register`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ registrationData: customFieldResponses })
+          body: JSON.stringify(regPayload)
         }
       );
 
@@ -184,10 +225,15 @@ function EventDetails() {
         throw new Error(data.message || "Failed to register");
       }
 
-      setRegistrationStatus("registered");
-      setRegistrationData(data.registration);
-      setSuccess(`Successfully registered! Your Ticket ID: ${data.ticketId}`);
-      setTimeout(() => setSuccess(""), 5000);
+      if (data.isPending) {
+        setRegistrationStatus("pending");
+        setRegistrationData(data.registration);
+        setSuccess("Order placed! Awaiting organizer approval.");
+      } else {
+        setRegistrationStatus("registered");
+        setRegistrationData(data.registration);
+        setSuccess(`Successfully registered! Your Ticket ID: ${data.ticketId}`);
+      }
     } catch (err) {
       setError(err.message || "Failed to register for event");
       setTimeout(() => setError(""), 5000);
@@ -241,12 +287,12 @@ function EventDetails() {
           // EDIT MODE
           <div className="event-edit-form">
             <h3>Edit Event {canEditPartial && "(Limited Edit Mode - Published Event)"}</h3>
-            
+
             {canEditAll && (
               <>
                 <div className="form-group">
                   <label>Event Name</label>
-                  <input  
+                  <input
                     type="text"
                     name="eventName"
                     value={editFormData.eventName}
@@ -343,6 +389,70 @@ function EventDetails() {
               />
             </div>
 
+            {canEditAll && editFormData.eventType === "MERCH" && (
+              <div className="form-group">
+                <label>Merchandise Variants</label>
+                {editMerchVariants.map((v, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', padding: '8px', background: '#f8f9fa', borderRadius: '4px' }}>
+                    <span style={{ flex: 1 }}><strong>{v.name}</strong> — Stock: {v.stock}</span>
+                    <button type="button" onClick={() => setEditMerchVariants(prev => prev.filter((_, i) => i !== idx))} style={{ background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer' }}>Remove</button>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <input type="text" placeholder="Variant name" value={editNewVariant.name} onChange={e => setEditNewVariant(p => ({ ...p, name: e.target.value }))} style={{ flex: 1 }} />
+                  <input type="number" placeholder="Stock" min="1" value={editNewVariant.stock} onChange={e => setEditNewVariant(p => ({ ...p, stock: e.target.value }))} style={{ width: '80px' }} />
+                  <button type="button" onClick={() => { if (!editNewVariant.name.trim() || !editNewVariant.stock) return; setEditMerchVariants(prev => [...prev, { name: editNewVariant.name.trim(), stock: parseInt(editNewVariant.stock) }]); setEditNewVariant({ name: "", stock: "" }); }} style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer' }}>Add</button>
+                </div>
+                <div style={{ marginTop: '12px' }}>
+                  <label>Purchase Limit Per User</label>
+                  <input type="number" name="purchaseLimitPerUser" min="1" value={editFormData.purchaseLimitPerUser} onChange={handleEditChange} />
+                </div>
+              </div>
+            )}
+
+            {canEditAll && editFormData.eventType === "NORMAL" && (
+              <div className="form-group">
+                <label>Custom Registration Fields</label>
+                {event.registeredCount > 0 ? (
+                  <div style={{ padding: 'var(--spacing-lg)', background: 'rgba(212, 181, 212, 0.1)', border: '2px dashed var(--accent-light)', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                    <span style={{ fontSize: '20px', fontWeight: 700 }}>Locked</span>
+                    <p style={{ fontWeight: 600, marginTop: '8px', color: 'var(--text-primary)' }}>Form Fields Locked</p>
+                    <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)', margin: 0 }}>
+                      Custom fields cannot be modified because {event.registeredCount} participant(s) have already registered.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {editCustomFields.map((field, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', padding: '8px', background: '#f8f9fa', borderRadius: '4px' }}>
+                        <span style={{ flex: 1 }}><strong>{field.fieldLabel}</strong> ({field.fieldType}){field.required && <span style={{ color: 'red' }}> *</span>}</span>
+                        <button type="button" onClick={() => setEditCustomFields(prev => prev.filter((_, i) => i !== idx))} style={{ background: '#ff6b6b', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer' }}>Remove</button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                      <input type="text" placeholder="Field label" value={editNewField.fieldLabel} onChange={e => setEditNewField(p => ({ ...p, fieldLabel: e.target.value }))} style={{ flex: 1 }} />
+                      <select value={editNewField.fieldType} onChange={e => setEditNewField(p => ({ ...p, fieldType: e.target.value }))}>
+                        <option value="TEXT">Text</option>
+                        <option value="EMAIL">Email</option>
+                        <option value="NUMBER">Number</option>
+                        <option value="DROPDOWN">Dropdown</option>
+                        <option value="CHECKBOX">Checkbox</option>
+                        <option value="FILE_UPLOAD">File Upload</option>
+                      </select>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input type="checkbox" checked={editNewField.required} onChange={e => setEditNewField(p => ({ ...p, required: e.target.checked }))} />
+                        Required
+                      </label>
+                      <button type="button" onClick={() => { if (!editNewField.fieldLabel.trim()) return; setEditCustomFields(prev => [...prev, { fieldLabel: editNewField.fieldLabel.trim(), fieldType: editNewField.fieldType, required: editNewField.required, options: (editNewField.fieldType === 'DROPDOWN' || editNewField.fieldType === 'CHECKBOX') ? editNewField.options.split(',').map(o => o.trim()).filter(Boolean) : [] }]); setEditNewField({ fieldLabel: "", fieldType: "TEXT", required: false, options: "" }); }} style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer' }}>Add</button>
+                    </div>
+                    {(editNewField.fieldType === 'DROPDOWN' || editNewField.fieldType === 'CHECKBOX') && (
+                      <input type="text" placeholder="Options (comma-separated)" value={editNewField.options} onChange={e => setEditNewField(p => ({ ...p, options: e.target.value }))} style={{ marginTop: '8px', width: '100%' }} />
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="form-actions">
               <button className="btn-primary" onClick={handleSaveEdit}>Save Changes</button>
               <button className="btn-secondary" onClick={() => setIsEditing(false)}>Cancel</button>
@@ -397,10 +507,10 @@ function EventDetails() {
                     <div className="info-value highlight">{event.registrationLimit}</div>
                   </div>
                 )}
-                {event.registrationFee > 0 && (
+                {(event.registrationFee > 0 || event.eventType === "MERCH") && (
                   <div className="info-item">
-                    <div className="info-label">Registration Fee</div>
-                    <div className="info-value highlight">₹{event.registrationFee}</div>
+                    <div className="info-label">{event.eventType === "MERCH" ? "Price" : "Registration Fee"}</div>
+                    <div className="info-value highlight">{event.registrationFee > 0 ? `Rs. ${event.registrationFee}` : "Free"}</div>
                   </div>
                 )}
               </div>
@@ -437,11 +547,88 @@ function EventDetails() {
             {user?.role === "PARTICIPANT" && event.status === "PUBLISHED" && (
               <div className="event-section">
                 <h2 className="event-section-title">Registration</h2>
-                
+
+                {/* Pending approval status (MERCH) */}
+                {registrationStatus === "pending" && registrationData && (
+                  <div className="registration-status" style={{
+                    background: 'linear-gradient(135deg, rgba(255, 193, 7, 0.12) 0%, rgba(255, 193, 7, 0.04) 100%)',
+                    border: '2px solid #f0ad4e',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: 'var(--spacing-lg)',
+                    textAlign: 'center'
+                  }}>
+                    <p style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, color: '#856404', marginTop: '8px' }}>
+                      Order Pending Approval
+                    </p>
+                    <p style={{ fontSize: 'var(--font-size-sm)', color: '#856404', opacity: 0.8 }}>
+                      Your payment proof has been submitted. The organizer will review and approve your order.
+                    </p>
+                    <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)', marginTop: '8px' }}>
+                      No QR code or ticket will be generated until your payment is approved.
+                    </p>
+                    {registrationData.paymentProof && (
+                      <div style={{ marginTop: 'var(--spacing-md)' }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text-light)', marginBottom: '4px' }}>Your payment proof:</p>
+                        <img src={registrationData.paymentProof} alt="Payment proof" style={{ maxWidth: '200px', borderRadius: '8px', border: '1px solid var(--border)' }} />
+                      </div>
+                    )}
+                    <div style={{ marginTop: 'var(--spacing-md)' }}>
+                      <button className="btn-secondary" onClick={() => navigate("/participation-history")}>
+                        View My Orders
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Registered / Approved status */}
                 {registrationStatus === "registered" && registrationData && (
-                  <div className="registration-status">
-                    <p className="registration-status-text">You are registered for this event!</p>
-                    <div className="ticket-id"><strong>Ticket ID:</strong> {registrationData.ticketId}</div>
+                  <div className="registration-status" style={{
+                    background: 'linear-gradient(135deg, rgba(122, 155, 92, 0.12) 0%, rgba(122, 155, 92, 0.04) 100%)',
+                    border: '2px solid var(--success)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: 'var(--spacing-lg)'
+                  }}>
+                    <p className="registration-status-text" style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, color: 'var(--success)' }}>
+                      {registrationData.paymentStatus === 'Approved' ? '✅ Payment Approved — You are registered!' : 'You are registered for this event!'}
+                    </p>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--spacing-md)',
+                      marginTop: 'var(--spacing-md)',
+                      padding: 'var(--spacing-md)',
+                      background: 'var(--surface)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px dashed var(--border-dark)'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)', marginBottom: '4px' }}>Your Ticket ID</div>
+                        <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, fontFamily: 'monospace', letterSpacing: '2px' }}>
+                          {registrationData.ticketId}
+                        </div>
+                      </div>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(registrationData.ticketId);
+                          setSuccess("Ticket ID copied!");
+                          setTimeout(() => setSuccess(""), 2000);
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--spacing-lg)' }}>
+                      <div style={{ padding: '12px', background: 'white', borderRadius: 'var(--radius-md)', border: '2px dashed var(--border-dark)', textAlign: 'center' }}>
+                        <QRCodeSVG value={registrationData.ticketId} size={160} level="H" />
+                        <p style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '8px', marginBottom: 0 }}>Scan for verification</p>
+                      </div>
+                    </div>
+                    {registrationData.registeredAt && (
+                      <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)', marginTop: 'var(--spacing-sm)' }}>
+                        Registered on: {new Date(registrationData.registeredAt).toLocaleDateString()}
+                      </p>
+                    )}
                     <div style={{ marginTop: 'var(--spacing-md)' }}>
                       <button className="btn-secondary" onClick={() => navigate("/participation-history")}>
                         View My Registrations
@@ -450,14 +637,14 @@ function EventDetails() {
                   </div>
                 )}
 
-                {(registrationStatus === "not-registered" || registrationStatus === null) && (
+                {(registrationStatus === "not-registered" || registrationStatus === null) && registrationStatus !== "pending" && (
                   <>
                     {isDeadlinePassed() && (
                       <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-md)' }}>
                         Registration Closed - The deadline for this event has passed.
                       </div>
                     )}
-                    
+
                     {isCapacityReached() && (
                       <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-md)' }}>
                         Event Full - This event has reached its maximum capacity.
@@ -465,11 +652,112 @@ function EventDetails() {
                     )}
 
                     {!isDeadlinePassed() && !isCapacityReached() && (
-                      <p style={{ marginBottom: 'var(--spacing-md)' }}>Join this event by registering below.</p>
+                      <p style={{ marginBottom: 'var(--spacing-md)' }}>
+                        {event.eventType === "MERCH" ? "Select your preferred variant and purchase below." : "Join this event by registering below."}
+                      </p>
                     )}
 
-                    {/* Custom Registration Form Fields */}
-                    {event.customFields && event.customFields.length > 0 && (
+                    {/* Merchandise Variant Selection */}
+                    {event.eventType === "MERCH" && event.merchandiseVariants && event.merchandiseVariants.length > 0 && (
+                      <div style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-md)', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                        <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Select Variant</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+                          {event.merchandiseVariants.map((variant, idx) => (
+                            <label key={idx} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              padding: 'var(--spacing-md)',
+                              border: selectedVariant === variant.name ? '2px solid var(--accent)' : '1px solid #dee2e6',
+                              borderRadius: '8px',
+                              cursor: variant.stock > 0 ? 'pointer' : 'not-allowed',
+                              opacity: variant.stock > 0 ? 1 : 0.5,
+                              backgroundColor: selectedVariant === variant.name ? 'rgba(197, 168, 212, 0.1)' : 'white',
+                              transition: 'all 0.2s'
+                            }}>
+                              <input
+                                type="radio"
+                                name="variant"
+                                value={variant.name}
+                                checked={selectedVariant === variant.name}
+                                onChange={() => setSelectedVariant(variant.name)}
+                                disabled={variant.stock <= 0}
+                                style={{ marginRight: '12px' }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <strong>{variant.name}</strong>
+                              </div>
+                              <span style={{
+                                fontSize: '13px',
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                                backgroundColor: variant.stock > 0 ? 'rgba(155, 170, 124, 0.2)' : 'rgba(220, 53, 69, 0.2)',
+                                color: variant.stock > 0 ? 'var(--success)' : '#dc3545'
+                              }}>
+                                {variant.stock > 0 ? `${variant.stock} in stock` : "Out of stock"}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        {event.purchaseLimitPerUser && (
+                          <p style={{ marginTop: 'var(--spacing-sm)', fontSize: '13px', color: '#666' }}>
+                            Limit: {event.purchaseLimitPerUser} per person
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {/* Payment Proof Upload — only for MERCH events */}
+                    {event.eventType === "MERCH" && selectedVariant && (
+                      <div style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-md)', backgroundColor: '#fff8e1', borderRadius: '8px', border: '1px solid #ffe082' }}>
+                        <h3 style={{ marginBottom: 'var(--spacing-sm)', fontSize: '15px' }}>Upload Payment Proof</h3>
+                        <p style={{ fontSize: '13px', color: '#856404', marginBottom: 'var(--spacing-md)' }}>
+                          Upload a screenshot of your payment (UPI, bank transfer, etc.). Your order will be reviewed by the organizer.
+                        </p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 5 * 1024 * 1024) {
+                              setError("File too large. Maximum 5MB allowed.");
+                              return;
+                            }
+                            setUploadingProof(true);
+                            setError("");
+                            try {
+                              const formData = new FormData();
+                              formData.append("file", file);
+                              const uploadRes = await fetch("http://localhost:8000/api/upload", {
+                                method: "POST",
+                                credentials: "include",
+                                body: formData
+                              });
+                              const uploadData = await uploadRes.json();
+                              if (uploadRes.ok) {
+                                setPaymentProofUrl(uploadData.file.url);
+                              } else {
+                                setError(uploadData.message || "Upload failed");
+                              }
+                            } catch {
+                              setError("Payment proof upload failed");
+                            } finally {
+                              setUploadingProof(false);
+                            }
+                          }}
+                          style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px' }}
+                        />
+                        {uploadingProof && <p style={{ fontSize: '12px', color: '#856404', marginTop: '4px' }}>Uploading...</p>}
+                        {paymentProofUrl && (
+                          <div style={{ marginTop: '8px' }}>
+                            <p style={{ fontSize: '12px', color: 'var(--success)', marginBottom: '4px' }}>Payment proof uploaded</p>
+                            <img src={paymentProofUrl} alt="Payment proof" style={{ maxWidth: '150px', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Custom Registration Form Fields — only for NORMAL events */}
+                    {event.eventType === "NORMAL" && event.customFields && event.customFields.length > 0 && (
                       <div className="custom-form-section" style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-md)', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
                         <h3 style={{ marginBottom: 'var(--spacing-md)' }}>Registration Details</h3>
                         {event.customFields.map((field, idx) => (
@@ -560,30 +848,80 @@ function EventDetails() {
                               </div>
                             )}
 
-                            {field.fieldType === 'FILE' && (
-                              <input
-                                type="file"
-                                onChange={(e) => setCustomFieldResponses(prev => ({
-                                  ...prev,
-                                  [field.fieldLabel]: e.target.files?.[0]?.name || ''
-                                }))}
-                                style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px' }}
-                              />
+                            {(field.fieldType === 'FILE' || field.fieldType === 'FILE_UPLOAD') && (
+                              <div>
+                                <input
+                                  type="file"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    if (file.size > 5 * 1024 * 1024) {
+                                      setError("File too large. Maximum 5MB allowed.");
+                                      return;
+                                    }
+                                    setCustomFieldResponses(prev => ({
+                                      ...prev,
+                                      [field.fieldLabel]: "Uploading..."
+                                    }));
+                                    try {
+                                      const formData = new FormData();
+                                      formData.append("file", file);
+                                      const uploadRes = await fetch("http://localhost:8000/api/upload", {
+                                        method: "POST",
+                                        credentials: "include",
+                                        body: formData
+                                      });
+                                      const uploadData = await uploadRes.json();
+                                      if (uploadRes.ok) {
+                                        setCustomFieldResponses(prev => ({
+                                          ...prev,
+                                          [field.fieldLabel]: uploadData.file.url
+                                        }));
+                                      } else {
+                                        setError(uploadData.message || "Upload failed");
+                                        setCustomFieldResponses(prev => ({
+                                          ...prev,
+                                          [field.fieldLabel]: ""
+                                        }));
+                                      }
+                                    } catch  {
+                                      setError("File upload failed");
+                                      setCustomFieldResponses(prev => ({
+                                        ...prev,
+                                        [field.fieldLabel]: ""
+                                      }));
+                                    }
+                                  }}
+                                  style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px' }}
+                                />
+                                {customFieldResponses[field.fieldLabel] && customFieldResponses[field.fieldLabel] !== "Uploading..." && (
+                                  <p style={{ fontSize: '12px', color: 'var(--success)', marginTop: '4px' }}>File uploaded</p>
+                                )}
+                                {customFieldResponses[field.fieldLabel] === "Uploading..." && (
+                                  <p style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '4px' }}>Uploading...</p>
+                                )}
+                              </div>
                             )}
                           </div>
                         ))}
                       </div>
                     )}
-                    
+
                     <button
                       className="btn-primary"
                       onClick={handleRegisterForEvent}
                       disabled={isRegistering || isDeadlinePassed() || isCapacityReached()}
                     >
-                      {isDeadlinePassed() ? "Registration Closed" : isCapacityReached() ? "Event Full" : isRegistering ? "Registering..." : "Register Now"}
+                      {isDeadlinePassed() ? "Registration Closed" : isCapacityReached() ? "Event Full" : isRegistering ? "Processing..." : event.eventType === "MERCH" ? "Purchase Now" : "Register Now"}
                     </button>
                   </>
                 )}
+              </div>
+            )}
+
+            {(isOrganizer || registrationStatus === "registered") && event.status === "PUBLISHED" && (
+              <div className="event-section">
+                <DiscussionForum eventId={eventId} isOrganizer={isOrganizer} />
               </div>
             )}
           </>

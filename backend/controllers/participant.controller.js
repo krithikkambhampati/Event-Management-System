@@ -1,9 +1,16 @@
 import { Participant } from "../models/participant.model.js";
 import { VALID_INTERESTS } from "../constants/interests.js";
+import { verifyCaptcha } from "../utils/verifyCaptcha.js";
 
 export const handleSignupParticipant = async (req, res) => {
   try {
-    const { email, participantType, interests = [] } = req.body;
+    const { email, participantType, interests = [], captchaToken } = req.body;
+
+    // Verify reCAPTCHA
+    const captchaResult = await verifyCaptcha(captchaToken);
+    if (!captchaResult.success) {
+      return res.status(400).json({ message: captchaResult.message });
+    }
 
     const existingUser = await Participant.findOne({ email });
     if (existingUser) {
@@ -73,7 +80,7 @@ export const handleSignupParticipant = async (req, res) => {
 export const handleUpdateParticipant = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fName, lName, collegeName, contactNumber, interests = [] } = req.body;
+    const { fName, lName, collegeName, contactNumber, interests = [], hasCompletedOnboarding } = req.body;
     const loggedInUserId = req.user.id;
 
     if (id !== loggedInUserId) {
@@ -92,6 +99,16 @@ export const handleUpdateParticipant = async (req, res) => {
       participant.interests = interests;
     }
 
+    // Update profile fields
+    if (fName !== undefined) participant.fName = fName;
+    if (lName !== undefined) participant.lName = lName;
+    if (collegeName !== undefined) participant.collegeName = collegeName;
+    if (contactNumber !== undefined) participant.contactNumber = contactNumber;
+
+    if (typeof hasCompletedOnboarding === "boolean") {
+      participant.hasCompletedOnboarding = hasCompletedOnboarding;
+    }
+
     await participant.save();
 
     res.status(200).json({
@@ -105,6 +122,8 @@ export const handleUpdateParticipant = async (req, res) => {
         contactNumber: participant.contactNumber,
         participantType: participant.participantType,
         interests: participant.interests,
+        hasCompletedOnboarding: participant.hasCompletedOnboarding,
+        followedOrganizers: participant.followedOrganizers,
         role: "PARTICIPANT"
       }
     });

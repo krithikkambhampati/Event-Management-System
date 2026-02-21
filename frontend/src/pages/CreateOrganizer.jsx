@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { AVAILABLE_INTERESTS } from "../constants/interests";
 import '../styles/CreateEvent.css';
 
 function CreateOrganizer() {
@@ -69,7 +70,7 @@ function CreateOrganizer() {
       {error && <div className="alert alert-error">{error}</div>}
 
       {credentials && (
-        <div className="alert alert-success" style={{ 
+        <div className="alert alert-success" style={{
           background: 'linear-gradient(135deg, rgba(122, 155, 92, 0.15) 0%, rgba(122, 155, 92, 0.05) 100%)',
           borderLeft: '5px solid var(--success)',
           padding: 'var(--spacing-lg)',
@@ -80,7 +81,7 @@ function CreateOrganizer() {
           <div style={{ display: 'grid', gap: 'var(--spacing-md)' }}>
             <div>
               <strong>Login Email:</strong> {credentials.email}
-              <button 
+              <button
                 onClick={() => copyToClipboard(credentials.email)}
                 className="btn-secondary"
                 style={{ marginLeft: 'var(--spacing-md)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
@@ -90,7 +91,7 @@ function CreateOrganizer() {
             </div>
             <div>
               <strong>Password:</strong> {credentials.password}
-              <button 
+              <button
                 onClick={() => copyToClipboard(credentials.password)}
                 className="btn-secondary"
                 style={{ marginLeft: 'var(--spacing-md)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
@@ -127,12 +128,9 @@ function CreateOrganizer() {
               required
             >
               <option value="">Select Category</option>
-              <option value="Technical">Technical</option>
-              <option value="Cultural">Cultural</option>
-              <option value="Sports">Sports</option>
-              <option value="Literary">Literary</option>
-              <option value="Social">Social</option>
-              <option value="Academic">Academic</option>
+              {AVAILABLE_INTERESTS.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
             </select>
           </div>
 
