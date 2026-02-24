@@ -120,9 +120,9 @@ function CreateEvent() {
       return false;
     }
 
-    const deadline = new Date(formData.registrationDeadline);
-    const start = new Date(formData.startDate);
-    const end = new Date(formData.endDate);
+    const deadline = new Date(`${formData.registrationDeadline}T${formData.registrationDeadlineTime}:00+05:30`);
+    const start = new Date(`${formData.startDate}T${formData.startTime}:00+05:30`);
+    const end = new Date(`${formData.endDate}T${formData.endTime}:00+05:30`);
 
     if (start >= end) {
       setError("Start date must be before end date");
@@ -163,13 +163,13 @@ function CreateEvent() {
         .filter(tag => tag.length > 0);
 
       const registrationDeadline = formData.registrationDeadline
-        ? `${formData.registrationDeadline}T${formData.registrationDeadlineTime}`
+        ? `${formData.registrationDeadline}T${formData.registrationDeadlineTime}:00+05:30`
         : "";
       const startDate = formData.startDate
-        ? `${formData.startDate}T${formData.startTime}`
+        ? `${formData.startDate}T${formData.startTime}:00+05:30`
         : "";
       const endDate = formData.endDate
-        ? `${formData.endDate}T${formData.endTime}`
+        ? `${formData.endDate}T${formData.endTime}:00+05:30`
         : "";
 
       const eventData = {

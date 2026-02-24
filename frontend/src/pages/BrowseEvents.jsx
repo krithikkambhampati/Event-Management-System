@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import Fuse from 'fuse.js';
+import FuseModule from 'fuse.js';
+const Fuse = FuseModule?.default ?? FuseModule;
 import { eventAPI } from "../services/api";
 import '../styles/Event.css';
 

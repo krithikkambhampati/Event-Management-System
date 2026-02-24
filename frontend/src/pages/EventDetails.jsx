@@ -32,6 +32,22 @@ function EventDetails() {
   const [editMerchVariants, setEditMerchVariants] = useState([]);
   const [editNewVariant, setEditNewVariant] = useState({ name: "", stock: "" });
 
+  // Returns YYYY-MM-DDTHH:mm in the browser's LOCAL timezone (IST) for datetime-local inputs
+  const toLocalDatetimeInput = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  // Appends +05:30 so the backend stores the correct IST time as UTC
+  const appendIST = (val) => {
+    if (!val) return val;
+    if (val.includes("+") || val.endsWith("Z")) return val;
+    return `${val}:00+05:30`;
+  };
+
   const fetchEventDetails = async () => {
     setLoading(true);
     setError("");
@@ -89,6 +105,9 @@ function EventDetails() {
     try {
       const dataToSend = {
         ...editFormData,
+        registrationDeadline: appendIST(editFormData.registrationDeadline),
+        startDate: appendIST(editFormData.startDate),
+        endDate: appendIST(editFormData.endDate),
         tags: editFormData.tags
           .split(",")
           .map(tag => tag.trim())
@@ -322,7 +341,7 @@ function EventDetails() {
                   <input
                     type="datetime-local"
                     name="startDate"
-                    value={new Date(editFormData.startDate).toISOString().slice(0, 16)}
+                    value={toLocalDatetimeInput(editFormData.startDate)}
                     onChange={handleEditChange}
                   />
                 </div>
@@ -332,7 +351,7 @@ function EventDetails() {
                   <input
                     type="datetime-local"
                     name="endDate"
-                    value={new Date(editFormData.endDate).toISOString().slice(0, 16)}
+                    value={toLocalDatetimeInput(editFormData.endDate)}
                     onChange={handleEditChange}
                   />
                 </div>
@@ -374,7 +393,7 @@ function EventDetails() {
               <input
                 type="datetime-local"
                 name="registrationDeadline"
-                value={new Date(editFormData.registrationDeadline).toISOString().slice(0, 16)}
+                value={toLocalDatetimeInput(editFormData.registrationDeadline)}
                 onChange={handleEditChange}
               />
             </div>
