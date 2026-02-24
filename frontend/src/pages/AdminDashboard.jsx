@@ -9,7 +9,7 @@ function AdminDashboard() {
     activeOrganizers: 0,
     pendingPasswordResets: 0
   });
-  const [loading, setLoading] = useState(true);
+  const [setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
