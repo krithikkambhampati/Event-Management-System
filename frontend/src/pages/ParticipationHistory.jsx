@@ -83,7 +83,7 @@ function ParticipationHistory() {
           <p>Track all your event registrations and attendance</p>
         </div>
         <div className="empty-state">
-          <div className="empty-state-icon">📋</div>
+          <div className="empty-state-icon">--</div>
           <div className="empty-state-title">No Registrations Yet</div>
           <p className="empty-state-text">You haven't registered for any events yet.</p>
           <button
@@ -174,7 +174,7 @@ function ParticipationHistory() {
 
       {filteredRegs.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🔍</div>
+          <div className="empty-state-icon">--</div>
           <div className="empty-state-title">No {activeTab !== "all" ? activeTab.charAt(0).toUpperCase() + activeTab.slice(1) : "Registrations"}</div>
           <p className="empty-state-text">
             {activeTab === "all"

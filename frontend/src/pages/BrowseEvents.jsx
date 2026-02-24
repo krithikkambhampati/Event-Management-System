@@ -62,9 +62,7 @@ function BrowseEvents() {
 
     // Eligibility filter
     if (filterEligibility !== "all") {
-      filtered = filtered.filter(e =>
-        e.eligibility === filterEligibility || e.eligibility === "BOTH"
-      );
+      filtered = filtered.filter(e => e.eligibility === filterEligibility);
     }
 
     // Date range filter

@@ -258,7 +258,7 @@ function OrganizerProfile() {
               <span className="label">Discord Webhook:</span>
               <span>
                 {formData.discordWebhook
-                  ? <span style={{ color: "#5865F2", fontWeight: 600 }}>✓ Connected</span>
+                  ? <span style={{ color: "#5865F2", fontWeight: 600 }}>Connected</span>
                   : <span style={{ color: "var(--text-light)" }}>Not configured</span>
                 }
               </span>

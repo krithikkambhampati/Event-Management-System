@@ -30,7 +30,7 @@ function DiscussionForum({ eventId, isOrganizer }) {
                     );
 
                     if (hasNewEveryone && (!user || user.role !== "ORGANIZER")) {
-                        setEveryoneAlert("📢 An Organizer has tagged @everyone in a new message!");
+                        setEveryoneAlert("An Organizer has tagged @everyone in a new message!");
                         setTimeout(() => setEveryoneAlert(""), 10000);
                     }
                 }
@@ -193,7 +193,7 @@ function DiscussionForum({ eventId, isOrganizer }) {
                         {["like", "love", "insightful"].map(r => {
                             const count = msg.reactions?.[r]?.length || 0;
                             const hasReacted = user && msg.reactions?.[r]?.includes(user._id);
-                            const labels = { like: "👍", love: "❤️", insightful: "💡" };
+                            const labels = { like: "Like", love: "Love", insightful: "Insightful" };
                             return (
                                 <button
                                     key={r}
@@ -302,7 +302,7 @@ function DiscussionForum({ eventId, isOrganizer }) {
                     alignItems: 'center',
                     justifyContent: 'space-between'
                 }}>
-                    <span>📢 {everyoneAlert}</span>
+                    <span>{everyoneAlert}</span>
                     <button onClick={() => setEveryoneAlert("")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#856404' }}>×</button>
                 </div>
             )}

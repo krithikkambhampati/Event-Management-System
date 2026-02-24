@@ -64,7 +64,6 @@ function InterestModal({ onClose, onSave, user, refreshUser }) {
         // Refresh user data so interests are immediately reflected
         if (refreshUser) await refreshUser();
         onSave(selectedInterests);
-        onClose();
       }
     } catch (err) {
       console.error("Error saving preferences:", err);

@@ -670,7 +670,7 @@ function EventDetails() {
                     padding: 'var(--spacing-lg)'
                   }}>
                     <p className="registration-status-text" style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, color: 'var(--success)' }}>
-                      {registrationData.paymentStatus === 'Approved' ? '✅ Payment Approved — You are registered!' : 'You are registered for this event!'}
+                      {registrationData.paymentStatus === 'Approved' ? 'Payment Approved — You are registered!' : 'You are registered for this event!'}
                     </p>
                     <div style={{
                       display: 'flex',

@@ -412,7 +412,7 @@ function EventRegistrations() {
                   <td style={{ padding: '12px', textAlign: 'center' }}>
                     {reg.attendanceMarked ? (
                       <div style={{ color: 'var(--success)', fontWeight: 600, fontSize: '13px', marginBottom: '6px' }}>
-                        ✓ Present
+                        Present
                       </div>
                     ) : (
                       <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '6px' }}>

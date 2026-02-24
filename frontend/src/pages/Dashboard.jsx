@@ -151,7 +151,7 @@ function Dashboard() {
               }}
               title="Notifications"
             >
-              🔔
+              Notifications
               {notifications.length > 0 && (
                 <span style={{
                   position: 'absolute', top: '2px', right: '2px',

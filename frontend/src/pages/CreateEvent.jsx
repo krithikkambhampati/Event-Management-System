@@ -613,7 +613,7 @@ function CreateEvent() {
         <>
           <div className="success-popup-overlay" />
           <div className="success-popup">
-            <div className="success-popup-icon">✓</div>
+            <div className="success-popup-icon">Done</div>
             <h2>Event Created Successfully!</h2>
             <p>{successMessage}</p>
             <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)' }}>

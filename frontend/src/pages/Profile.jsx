@@ -393,7 +393,7 @@ function Profile() {
                 onMouseOver={e => { e.target.style.borderColor = 'var(--accent)'; e.target.style.color = 'var(--accent)'; }}
                 onMouseOut={e => { e.target.style.borderColor = 'var(--border-dark)'; e.target.style.color = 'var(--text-secondary)'; }}
               >
-                🔑 Change Password
+                Change Password
               </button>
             )}
           </div>

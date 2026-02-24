@@ -93,7 +93,7 @@ export const handleSignupParticipant = async (req, res) => {
 export const handleUpdateParticipant = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fName, lName, collegeName, contactNumber, interests = [], hasCompletedOnboarding } = req.body;
+    const { fName, lName, collegeName, contactNumber, interests, hasCompletedOnboarding } = req.body;
     const loggedInUserId = req.user.id;
 
     if (id !== loggedInUserId) {
@@ -105,11 +105,9 @@ export const handleUpdateParticipant = async (req, res) => {
       return res.status(404).json({ message: "Participant not found" });
     }
 
-    if (interests.length > 0) {
+    if (interests !== undefined) {
       const validInterests = interests.filter(interest => VALID_INTERESTS.includes(interest));
       participant.interests = validInterests;
-    } else {
-      participant.interests = interests;
     }
 
     if (contactNumber !== undefined && !/^\d{10}$/.test(contactNumber)) {
