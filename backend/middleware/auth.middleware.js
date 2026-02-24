@@ -2,6 +2,15 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { Organizer } from "../models/organizer.model.js";
 
+const cookieClearOptions = () => {
+  const isProduction = process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    sameSite: isProduction ? "none" : "lax",
+    secure: isProduction,
+  };
+};
+
 export const verifyToken = async (req, res, next) => {
   const token = req.cookies.token;
 
@@ -13,18 +22,12 @@ export const verifyToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     if (!decoded?.id || !decoded?.role) {
-      res.clearCookie("token", {
-        httpOnly: true,
-        sameSite: "lax"
-      });
+      res.clearCookie("token", cookieClearOptions());
       return res.status(401).json({ message: "Invalid token" });
     }
 
     if (!mongoose.Types.ObjectId.isValid(decoded.id)) {
-      res.clearCookie("token", {
-        httpOnly: true,
-        sameSite: "lax"
-      });
+      res.clearCookie("token", cookieClearOptions());
       return res.status(401).json({ message: "Invalid token" });
     }
 
@@ -32,10 +35,7 @@ export const verifyToken = async (req, res, next) => {
       const organizer = await Organizer.findById(decoded.id).select("isActive").lean();
 
       if (!organizer || !organizer.isActive) {
-        res.clearCookie("token", {
-          httpOnly: true,
-          sameSite: "lax"
-        });
+        res.clearCookie("token", cookieClearOptions());
         return res.status(401).json({ message: "Organizer account disabled" });
       }
     }
@@ -43,10 +43,7 @@ export const verifyToken = async (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    res.clearCookie("token", {
-      httpOnly: true,
-      sameSite: "lax"
-    });
+    res.clearCookie("token", cookieClearOptions());
     return res.status(401).json({ message: "Invalid token" });
   }
 };
