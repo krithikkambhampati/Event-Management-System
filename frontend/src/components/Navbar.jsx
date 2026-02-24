@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { authAPI } from "../services/api";
 import '../styles/Navbar.css';
 
 function Navbar() {
@@ -12,11 +13,7 @@ function Navbar() {
   };
 
   const handleLogout = async () => {
-    await fetch("http://localhost:8000/api/auth/logout", {
-      method: "POST",
-      credentials: "include"
-    });
-
+    await authAPI.logout();
     setUser(null);
     navigate("/login");
   };
@@ -27,7 +24,7 @@ function Navbar() {
     <nav className="navbar">
       <div className="navbar-container">
         <div className="navbar-brand">
-          Event Manager
+          Event Management System
         </div>
 
         <ul className="navbar-nav">
@@ -37,6 +34,7 @@ function Navbar() {
               <li><Link to="/browse-events" className={isActive("/browse-events") ? "active" : ""}>Browse Events</Link></li>
               <li><Link to="/browse-organizers" className={isActive("/browse-organizers") ? "active" : ""}>Browse Organizers</Link></li>
               <li><Link to="/participation-history" className={isActive("/participation-history") ? "active" : ""}>My Registrations</Link></li>
+              <li><Link to="/profile" className={isActive("/profile") ? "active" : ""}>Profile</Link></li>
             </>
           )}
 
@@ -45,7 +43,7 @@ function Navbar() {
               <li><Link to="/admin" className={isActive("/admin") ? "active" : ""}>Dashboard</Link></li>
               <li><Link to="/admin/create-organizer" className={isActive("/admin/create-organizer") ? "active" : ""}>Create Organizer</Link></li>
               <li><Link to="/admin/organizers" className={isActive("/admin/organizers") ? "active" : ""}>Manage Organizers</Link></li>
-              <li><Link to="/admin/password-resets" className={isActive("/admin/password-resets") ? "active" : ""}>Password Resets</Link></li>
+              <li><Link to="/admin/password-resets" className={isActive("/admin/password-resets") ? "active" : ""}>Password Reset Requests</Link></li>
             </>
           )}
 
@@ -54,22 +52,13 @@ function Navbar() {
               <li><Link to="/organizer" className={isActive("/organizer") ? "active" : ""}>Dashboard</Link></li>
               <li><Link to="/organizer/create-event" className={isActive("/organizer/create-event") ? "active" : ""}>Create Event</Link></li>
               <li><Link to="/organizer/ongoing-events" className={isActive("/organizer/ongoing-events") ? "active" : ""}>Ongoing Events</Link></li>
+              <li><Link to="/organizer/profile" className={isActive("/organizer/profile") ? "active" : ""}>Profile</Link></li>
             </>
           )}
         </ul>
 
         <div className="navbar-user">
           <span>{user.fName || user.email}</span>
-          {user.role === "PARTICIPANT" && (
-            <Link to="/profile" className="navbar-profile-link">
-              Profile
-            </Link>
-          )}
-          {user.role === "ORGANIZER" && (
-            <Link to="/organizer/profile" className="navbar-profile-link">
-              Profile
-            </Link>
-          )}
           <button className="navbar-logout-btn" onClick={handleLogout}>
             Logout
           </button>

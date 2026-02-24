@@ -1,10 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import ReCAPTCHA from "react-google-recaptcha";
+import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
+import { authAPI } from "../services/api";
 import '../styles/Auth.css';
-
-const RECAPTCHA_SITE_KEY = "6LcTYHMsAAAAAG1zZLhI8cBmrBew2GtGP18AeuS8";
 
 function Login() {
   const [email, setEmail] = useState("");
@@ -13,34 +12,35 @@ function Login() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const recaptchaRef = useRef(null);
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
   const { setUser } = useAuth();
 
-  const handleLogin = async (e) => {
+  const handleLogin = useCallback(async (e) => {
     e.preventDefault();
     setError("");
 
-    // Get reCAPTCHA token
-    const captchaToken = recaptchaRef.current?.getValue();
-    if (!captchaToken) {
-      setError("Please complete the CAPTCHA verification");
+    if (!executeRecaptcha) {
+      setError("reCAPTCHA not ready. Please wait and try again.");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/login", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, captchaToken })
-      });
+      // Always get a fresh token on submit — pre-warmed tokens lack user interaction context
+      // and score poorly with reCAPTCHA v3
+      let captchaToken = "";
+      try {
+        captchaToken = await executeRecaptcha("login");
+      } catch (captchaErr) {
+        console.warn("[reCAPTCHA] Token generation failed, proceeding without:", captchaErr.message);
+        // Proceed without captcha — backend will handle gracefully
+      }
 
-      const data = await res.json();
+      const { ok, data } = await authAPI.login({ email, password, captchaToken });
 
-      if (res.ok && data.user) {
+      if (ok && data.user) {
         setUser(data.user);
         if (data.user.role === "ADMIN") {
           navigate("/admin");
@@ -51,15 +51,13 @@ function Login() {
         }
       } else {
         setError(data.message || "Login failed");
-        recaptchaRef.current?.reset();
       }
-    } catch (err) {
+    } catch  {
       setError("Network error. Please try again.");
-      recaptchaRef.current?.reset();
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [executeRecaptcha, email, password, navigate, setUser]);
 
   return (
     <div className="auth-container">
@@ -104,13 +102,6 @@ function Login() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
-            <ReCAPTCHA
-              ref={recaptchaRef}
-              sitekey={RECAPTCHA_SITE_KEY}
-            />
-          </div>
-
           <button type="submit" className="auth-button" disabled={isLoading}>
             {isLoading ? "Logging in..." : "Login"}
           </button>
@@ -128,3 +119,4 @@ function Login() {
 }
 
 export default Login;
+

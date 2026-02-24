@@ -7,11 +7,13 @@ import cookieParser from "cookie-parser";
 import participantRouter from "./routes/participant.routes.js";
 import adminRouter from "./routes/admin.routes.js";
 import authRouter from "./routes/auth.routes.js";
+import { Admin } from "./models/admin.model.js";
 import eventRouter from "./routes/event.routes.js";
 import registrationRouter from "./routes/registration.routes.js";
 import organizerRouter from "./routes/organizer.routes.js";
 import uploadRouter from "./routes/upload.routes.js";
 import discussionRouter from "./routes/discussion.routes.js";
+import notificationRouter from "./routes/notification.routes.js";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -24,15 +26,14 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: process.env.CORS_ORIGIN,
   credentials: true
 }));
-const PORT = 8000
+const PORT = process.env.PORT || 8000;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve uploaded files statically
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/api/participants", participantRouter);
@@ -43,11 +44,21 @@ app.use("/api/registrations", registrationRouter);
 app.use("/api/organizers", organizerRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/discussions", discussionRouter);
-await mongoose.connect("mongodb://127.0.0.1:27017/eventManagementSystem")
-  .then(() => console.log("MONGODB connected"))
-  .catch(() => console.log("Error occured while connecting to MONGODB"))
+app.use("/api/notifications", notificationRouter);
+try {
+  await mongoose.connect(process.env.DATABASE_URL || "mongodb://127.0.0.1:27017/eventManagementSystem");
+  console.log("MONGODB connected");
 
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@ems.org";
+  const adminPassword = process.env.ADMIN_PASSWORD || "123456";
+  const existingAdmin = await Admin.findOne({ email: adminEmail });
+  if (!existingAdmin) {
+    await Admin.create({ name: "Admin", email: adminEmail, password: adminPassword });
+    console.log(`Admin account created: ${adminEmail}`);
+  }
 
-
-
-app.listen(PORT, () => console.log("Server running on port:", PORT));
+  app.listen(PORT, () => console.log("Server running on port:", PORT));
+} catch (err) {
+  console.error("Error occurred while connecting to MONGODB:", err.message);
+  process.exit(1);
+}

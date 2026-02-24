@@ -49,6 +49,14 @@ export const createOrganizer = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    if (contactEmail === process.env.EMAIL_USER) {
+      return res.status(400).json({ message: "Contact email cannot be the system email address" });
+    }
+
+    if (!/^\d{10}$/.test(contactNumber)) {
+      return res.status(400).json({ message: "Contact number must be exactly 10 digits" });
+    }
+
     const generatedPassword = crypto.randomBytes(6).toString("hex");
 
     let email = await generateUniqueOrganizerEmail(organizerName);
@@ -177,7 +185,6 @@ export const deleteOrganizer = async (req, res) => {
       { $pull: { followedOrganizers: id } }
     );
 
-    // Delete the organizer
     await Organizer.findByIdAndDelete(id);
 
     return res.status(200).json({
@@ -225,7 +232,7 @@ export const getPasswordResetRequests = async (req, res) => {
   try {
     const requests = await Organizer.find({
       passwordResetStatus: "PENDING"
-    }).select("_id organizerName email passwordResetRequestedAt");
+    }).select("_id organizerName email passwordResetRequestedAt passwordResetReason");
 
     res.status(200).json({ requests });
   } catch (error) {
@@ -237,6 +244,7 @@ export const getPasswordResetRequests = async (req, res) => {
 export const approvePasswordResetRequest = async (req, res) => {
   try {
     const { id } = req.params;
+    const { adminComment } = req.body || {};
     const organizer = await Organizer.findById(id);
 
     if (!organizer) {
@@ -249,8 +257,18 @@ export const approvePasswordResetRequest = async (req, res) => {
 
     const newPassword = crypto.randomBytes(6).toString("hex");
 
+    organizer.passwordResetHistory = organizer.passwordResetHistory || [];
+    organizer.passwordResetHistory.push({
+      requestedAt: organizer.passwordResetRequestedAt,
+      resolvedAt: new Date(),
+      status: "APPROVED",
+      reason: organizer.passwordResetReason || null,
+      adminComment: adminComment || null
+    });
+
     organizer.password = newPassword;
     organizer.passwordResetStatus = "APPROVED";
+    organizer.passwordResetReason = null;
     await organizer.save();
 
     res.status(200).json({
@@ -267,6 +285,7 @@ export const approvePasswordResetRequest = async (req, res) => {
 export const rejectPasswordResetRequest = async (req, res) => {
   try {
     const { id } = req.params;
+    const { adminComment } = req.body || {};
     const organizer = await Organizer.findById(id);
 
     if (!organizer) {
@@ -277,12 +296,53 @@ export const rejectPasswordResetRequest = async (req, res) => {
       return res.status(400).json({ message: "Not a pending request" });
     }
 
+    organizer.passwordResetHistory = organizer.passwordResetHistory || [];
+    organizer.passwordResetHistory.push({
+      requestedAt: organizer.passwordResetRequestedAt,
+      resolvedAt: new Date(),
+      status: "REJECTED",
+      reason: organizer.passwordResetReason || null,
+      adminComment: adminComment || null
+    });
+
     organizer.passwordResetStatus = "NONE";
+    organizer.passwordResetReason = null;
     await organizer.save();
 
     res.status(200).json({ message: "Request rejected" });
   } catch (error) {
     console.error("rejectPasswordResetRequest error:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getPasswordResetHistory = async (req, res) => {
+  try {
+    const organizers = await Organizer.find({
+      "passwordResetHistory.0": { $exists: true }
+    }).select("_id organizerName email passwordResetHistory");
+
+    const history = [];
+    for (const org of organizers) {
+      for (const entry of org.passwordResetHistory || []) {
+        history.push({
+          organizerName: org.organizerName,
+          organizerEmail: org.email,
+          organizerId: org._id,
+          requestedAt: entry.requestedAt,
+          resolvedAt: entry.resolvedAt,
+          status: entry.status,
+          reason: entry.reason,
+          adminComment: entry.adminComment
+        });
+      }
+    }
+
+    history.sort((a, b) => new Date(b.resolvedAt) - new Date(a.resolvedAt));
+
+    res.status(200).json({ history });
+  } catch (error) {
+    console.error("getPasswordResetHistory error:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };

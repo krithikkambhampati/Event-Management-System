@@ -1,19 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { adminAPI } from "../services/api";
 import '../styles/Dashboard.css';
 
 function AdminPasswordResets() {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showPassword, setShowPassword] = useState(null);
   const [displayPassword, setDisplayPassword] = useState("");
   const [showPasswordText, setShowPasswordText] = useState(false);
+  const [activeTab, setActiveTab] = useState("pending");
+  const [adminComments, setAdminComments] = useState({});
 
   useEffect(() => {
     fetchRequests();
+    fetchHistory();
   }, []);
 
   const fetchRequests = async () => {
@@ -21,14 +26,9 @@ function AdminPasswordResets() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:8000/api/admin/password-resets", {
-        method: "GET",
-        credentials: "include"
-      });
+      const { ok, data } = await adminAPI.getPasswordResetRequests();
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to fetch requests");
       }
 
@@ -40,22 +40,27 @@ function AdminPasswordResets() {
     }
   };
 
+  const fetchHistory = async () => {
+    try {
+      const { ok, data } = await adminAPI.getPasswordResetHistory();
+      if (ok) {
+        setHistory(data.history || []);
+      }
+    } catch {
+      // silently fail for history
+    }
+  };
+
   const handleApprove = async (organizerId) => {
     setError("");
     setSuccess("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/admin/password-resets/${organizerId}/approve`,
-        {
-          method: "POST",
-          credentials: "include"
-        }
-      );
+      const { ok, data } = await adminAPI.approvePasswordReset(organizerId, {
+        adminComment: adminComments[organizerId] || ""
+      });
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to approve");
       }
 
@@ -63,7 +68,10 @@ function AdminPasswordResets() {
       setShowPassword(organizerId);
       setSuccess("Password reset approved!");
       setRequests(r => r.filter(x => x._id !== organizerId));
+      setAdminComments(prev => { const c = { ...prev }; delete c[organizerId]; return c; });
       window.dispatchEvent(new Event("password-reset-updated"));
+      window.scrollTo(0, 0);
+      fetchHistory();
     } catch (err) {
       setError(err.message || "Failed to approve request");
     }
@@ -74,23 +82,20 @@ function AdminPasswordResets() {
     setSuccess("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/admin/password-resets/${organizerId}/reject`,
-        {
-          method: "POST",
-          credentials: "include"
-        }
-      );
+      const { ok, data } = await adminAPI.rejectPasswordReset(organizerId, {
+        adminComment: adminComments[organizerId] || ""
+      });
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to reject");
       }
 
       setSuccess(`Request rejected for ${organizerName}`);
       setRequests(r => r.filter(x => x._id !== organizerId));
+      setAdminComments(prev => { const c = { ...prev }; delete c[organizerId]; return c; });
       window.dispatchEvent(new Event("password-reset-updated"));
+      window.scrollTo(0, 0);
+      fetchHistory();
     } catch (err) {
       setError(err.message || "Failed to reject request");
     }
@@ -153,56 +158,175 @@ function AdminPasswordResets() {
         </div>
       )}
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem' }}>Loading...</div>
-      ) : requests.length === 0 ? (
-        <div className="empty-state">
-          <p>No pending password reset requests</p>
-        </div>
-      ) : (
-        <table style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          backgroundColor: 'var(--surface)',
-          marginTop: '2rem',
-          borderRadius: '4px',
-          overflow: 'hidden'
-        }}>
-          <thead>
-            <tr style={{ backgroundColor: 'var(--primary-light)', borderBottom: '2px solid var(--accent)' }}>
-              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Organizer</th>
-              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Email</th>
-              <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Requested</th>
-              <th style={{ padding: '12px', textAlign: 'center', fontWeight: 600 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((req) => (
-              <tr key={req._id} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '12px' }}>{req.organizerName}</td>
-                <td style={{ padding: '12px' }}>{req.email}</td>
-                <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  {new Date(req.passwordResetRequestedAt).toLocaleDateString()}
-                </td>
-                <td style={{ padding: '12px', textAlign: 'center' }}>
-                  <button
-                    onClick={() => handleApprove(req._id)}
-                    className="btn-success"
-                    style={{ marginRight: '5px' }}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => handleReject(req._id, req.organizerName)}
-                    className="btn-danger"
-                  >
-                    Reject
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '0', borderBottom: '2px solid var(--border)', marginBottom: 'var(--spacing-lg)', marginTop: 'var(--spacing-md)' }}>
+        <button
+          onClick={() => setActiveTab("pending")}
+          style={{
+            padding: '10px 20px',
+            border: 'none',
+            borderBottom: activeTab === "pending" ? '3px solid var(--accent)' : '3px solid transparent',
+            background: 'none',
+            cursor: 'pointer',
+            fontWeight: activeTab === "pending" ? 600 : 400,
+            color: activeTab === "pending" ? 'var(--accent)' : 'var(--text-secondary)',
+            fontSize: 'var(--font-size-base)'
+          }}
+        >
+          Pending Requests ({requests.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          style={{
+            padding: '10px 20px',
+            border: 'none',
+            borderBottom: activeTab === "history" ? '3px solid var(--accent)' : '3px solid transparent',
+            background: 'none',
+            cursor: 'pointer',
+            fontWeight: activeTab === "history" ? 600 : 400,
+            color: activeTab === "history" ? 'var(--accent)' : 'var(--text-secondary)',
+            fontSize: 'var(--font-size-base)'
+          }}
+        >
+          History ({history.length})
+        </button>
+      </div>
+
+      {activeTab === "pending" && (
+        <>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '3rem' }}>Loading...</div>
+          ) : requests.length === 0 ? (
+            <div className="empty-state">
+              <p>No pending password reset requests</p>
+            </div>
+          ) : (
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              backgroundColor: 'var(--surface)',
+              marginTop: 'var(--spacing-md)',
+              borderRadius: '4px',
+              overflow: 'hidden'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--primary-light)', borderBottom: '2px solid var(--accent)' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Organizer</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Email</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Reason</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Requested</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Admin Comment</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: 600 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.map((req) => (
+                  <tr key={req._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px' }}>{req.organizerName}</td>
+                    <td style={{ padding: '12px' }}>{req.email}</td>
+                    <td style={{ padding: '12px', fontSize: '13px', maxWidth: '200px' }}>
+                      {req.passwordResetReason || <span style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>No reason provided</span>}
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      {new Date(req.passwordResetRequestedAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      <input
+                        type="text"
+                        placeholder="Optional comment..."
+                        value={adminComments[req._id] || ""}
+                        onChange={(e) => setAdminComments(prev => ({ ...prev, [req._id]: e.target.value }))}
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          border: '1px solid var(--border)',
+                          borderRadius: '4px',
+                          fontSize: '13px'
+                        }}
+                      />
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <button
+                        onClick={() => handleApprove(req._id)}
+                        className="btn-success"
+                        style={{ marginRight: '5px' }}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(req._id, req.organizerName)}
+                        className="btn-danger"
+                      >
+                        Reject
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+
+      {activeTab === "history" && (
+        <>
+          {history.length === 0 ? (
+            <div className="empty-state">
+              <p>No password reset history yet</p>
+            </div>
+          ) : (
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              backgroundColor: 'var(--surface)',
+              marginTop: 'var(--spacing-md)',
+              borderRadius: '4px',
+              overflow: 'hidden'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--primary-light)', borderBottom: '2px solid var(--accent)' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Organizer</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Reason</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: 600 }}>Status</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Admin Comment</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Requested</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Resolved</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((item, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px' }}>{item.organizerName}</td>
+                    <td style={{ padding: '12px', fontSize: '13px', maxWidth: '200px' }}>
+                      {item.reason || <span style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>—</span>}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        backgroundColor: item.status === 'APPROVED' ? 'rgba(155, 170, 124, 0.2)' : 'rgba(220, 53, 69, 0.2)',
+                        color: item.status === 'APPROVED' ? 'var(--success)' : '#dc3545'
+                      }}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '13px' }}>
+                      {item.adminComment || <span style={{ color: 'var(--text-light)', fontStyle: 'italic' }}>—</span>}
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      {new Date(item.requestedAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      {item.resolvedAt ? new Date(item.resolvedAt).toLocaleDateString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
     </div>
   );

@@ -2,7 +2,6 @@
 export const sendDiscordWebhook = async (webhookUrl, event, organizerName) => {
     if (!webhookUrl || typeof webhookUrl !== "string") return;
 
-    // Basic validation: must look like a Discord webhook URL
     if (!webhookUrl.startsWith("https://discord.com/api/webhooks/") &&
         !webhookUrl.startsWith("https://discordapp.com/api/webhooks/")) {
         console.warn("sendDiscordWebhook: Invalid webhook URL, skipping.");

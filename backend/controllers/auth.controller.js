@@ -9,7 +9,6 @@ export const handleLogin = async (req, res) => {
   try {
     const { email, password, captchaToken } = req.body;
 
-    // Verify reCAPTCHA
     const captchaResult = await verifyCaptcha(captchaToken);
     if (!captchaResult.success) {
       return res.status(400).json({ message: captchaResult.message });
@@ -20,7 +19,7 @@ export const handleLogin = async (req, res) => {
 
     const admin = await Admin.findOne({ email });
     if (admin) {
-      const isMatch = (admin.password === password)
+      const isMatch = await admin.comparePassword(password);
       if (!isMatch) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
@@ -64,20 +63,19 @@ export const handleLogin = async (req, res) => {
 
     const token = generateToken(user._id, role);
 
+    const isProduction = process.env.NODE_ENV === "production";
     res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: isProduction ? "none" : "lax",
+      secure: isProduction,
       maxAge: 24 * 60 * 60 * 1000
     });
 
-    // Build user response based on role
     const userResponse = {
       _id: user._id,
       email: user.email,
       role
     };
-
-    // Add role-specific fields
     if (role === "PARTICIPANT") {
       userResponse.fName = user.fName;
       userResponse.lName = user.lName;
@@ -126,9 +124,11 @@ export const handleGetMe = async (req, res) => {
     }
 
     if (!mongoose.Types.ObjectId.isValid(req.user.id)) {
+      const isProduction = process.env.NODE_ENV === "production";
       res.clearCookie("token", {
         httpOnly: true,
-        sameSite: "lax"
+        sameSite: isProduction ? "none" : "lax",
+        secure: isProduction
       });
       return res.status(401).json({ message: "Invalid token" });
     }
@@ -152,9 +152,11 @@ export const handleGetMe = async (req, res) => {
 };
 
 export const handleLogout = (req, res) => {
+  const isProduction = process.env.NODE_ENV === "production";
   res.clearCookie("token", {
     httpOnly: true,
-    sameSite: "lax"
+    sameSite: isProduction ? "none" : "lax",
+    secure: isProduction
   });
 
   res.status(200).json({ message: "Logged out successfully" });

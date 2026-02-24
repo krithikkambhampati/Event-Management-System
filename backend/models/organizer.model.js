@@ -52,6 +52,11 @@ const organizerSchema = new mongoose.Schema(
       default: true
     },
 
+    passwordResetReason: {
+      type: String,
+      default: null
+    },
+
     passwordResetStatus: {
       type: String,
       enum: ["NONE", "PENDING", "APPROVED"],
@@ -62,6 +67,14 @@ const organizerSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+
+    passwordResetHistory: [{
+      requestedAt: { type: Date },
+      resolvedAt: { type: Date },
+      status: { type: String, enum: ["APPROVED", "REJECTED"] },
+      reason: { type: String, default: null },
+      adminComment: { type: String, default: null }
+    }],
 
     discordWebhook: {
       type: String,

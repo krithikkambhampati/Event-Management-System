@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import QRScannerModal from "../components/QRScannerModal";
+import { eventAPI, registrationAPI } from "../services/api";
 import '../styles/Dashboard.css';
 
 function EventRegistrations() {
   const { eventId } = useParams();
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const navigate = useNavigate();
 
   const [event, setEvent] = useState(null);
@@ -29,20 +32,12 @@ function EventRegistrations() {
     setError("");
 
     try {
-      const eventRes = await fetch(
-        `http://localhost:8000/api/events/${eventId}`,
-        { method: "GET", credentials: "include" }
-      );
-      const eventData = await eventRes.json();
-      if (!eventRes.ok) throw new Error(eventData.message || "Failed to fetch event");
+      const { ok: eventOk, data: eventData } = await eventAPI.getById(eventId);
+      if (!eventOk) throw new Error(eventData.message || "Failed to fetch event");
       setEvent(eventData.event);
 
-      const regRes = await fetch(
-        `http://localhost:8000/api/registrations/${eventId}/registrations`,
-        { method: "GET", credentials: "include" }
-      );
-      const regData = await regRes.json();
-      if (!regRes.ok) throw new Error(regData.message || "Failed to fetch registrations");
+      const { ok: regOk, data: regData } = await registrationAPI.getEventRegistrations(eventId);
+      if (!regOk) throw new Error(regData.message || "Failed to fetch registrations");
 
       setRegistrations(regData.registrations || []);
       setStats(regData.stats || {});
@@ -82,17 +77,34 @@ function EventRegistrations() {
     return matchesStatus && matchesSearch;
   });
 
+  // Mark Attendance Manually
+  const handleManualAttendance = async (registrationId, markAs) => {
+    try {
+      setProcessing(registrationId);
+      const { ok, data } = await registrationAPI.manualAttendance(registrationId, { reason: "Manual update via dashboard", markAs });
+      if (ok) {
+        setSuccess(data.message);
+        setTimeout(() => setSuccess(""), 3000);
+        fetchEventAndRegistrations();
+      } else {
+        setError(data.message || 'Failed to update attendance');
+        setTimeout(() => setError(""), 4000);
+      }
+    } catch {
+      setError('Network error');
+      setTimeout(() => setError(""), 4000);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   // Approve payment
   const handleApprove = async (registrationId) => {
     setProcessing(registrationId);
     setError("");
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/registrations/${registrationId}/approve-payment`,
-        { method: "POST", credentials: "include" }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to approve");
+      const { ok, data } = await registrationAPI.approvePayment(registrationId);
+      if (!ok) throw new Error(data.message || "Failed to approve");
       setSuccess("Payment approved! Ticket and email sent.");
       setTimeout(() => setSuccess(""), 4000);
       fetchEventAndRegistrations(); // refresh data
@@ -110,21 +122,31 @@ function EventRegistrations() {
     setProcessing(rejectModal._id);
     setError("");
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/registrations/${rejectModal._id}/reject-payment`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: rejectReason || "Payment rejected by organizer" })
-        }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to reject");
+      const { ok, data } = await registrationAPI.rejectPayment(rejectModal._id, { reason: rejectReason || "Payment rejected by organizer" });
+      if (!ok) throw new Error(data.message || "Failed to reject");
       setSuccess("Payment rejected.");
       setTimeout(() => setSuccess(""), 4000);
       setRejectModal(null);
       setRejectReason("");
+      fetchEventAndRegistrations();
+    } catch (err) {
+      setError(err.message);
+      setTimeout(() => setError(""), 5000);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  // Cancel registration (organizer cancels participant's registration)
+  const handleCancelRegistration = async (registrationId) => {
+    if (!window.confirm("Cancel this participant's registration?")) return;
+    setProcessing(registrationId);
+    setError("");
+    try {
+      const { ok, data } = await registrationAPI.cancel(registrationId);
+      if (!ok) throw new Error(data.message || "Failed to cancel registration");
+      setSuccess("Registration cancelled.");
+      setTimeout(() => setSuccess(""), 4000);
       fetchEventAndRegistrations();
     } catch (err) {
       setError(err.message);
@@ -243,7 +265,7 @@ function EventRegistrations() {
       {/* Tab Navigation */}
       <div style={{ marginTop: 'var(--spacing-xl)', marginBottom: 'var(--spacing-lg)' }}>
         <div style={{ display: 'flex', gap: '0', borderBottom: '2px solid var(--border)', marginBottom: 'var(--spacing-md)' }}>
-          {['all', ...(event?.eventType === 'MERCH' ? ['Pending'] : []), 'Registered', 'Cancelled'].map(tab => (
+          {['all', ...((event?.eventType === 'MERCH' || event?.registrationFee > 0) ? ['Pending'] : []), 'Registered', 'Cancelled'].map(tab => (
             <button
               key={tab}
               onClick={() => setFilterStatus(tab)}
@@ -265,9 +287,16 @@ function EventRegistrations() {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
           <h3>Participants ({filteredRegistrations.length})</h3>
-          <button className="btn-secondary" onClick={handleExportCSV} disabled={filteredRegistrations.length === 0}>
-            Export CSV
-          </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {event?.status === "ONGOING" && (
+              <button className="btn-primary" onClick={() => setIsScannerOpen(true)}>
+                📷 Scan QR Code
+              </button>
+            )}
+            <button className="btn-secondary" onClick={handleExportCSV} disabled={filteredRegistrations.length === 0}>
+              Export CSV
+            </button>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
           <input
@@ -327,9 +356,10 @@ function EventRegistrations() {
                 <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Email</th>
                 <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Date</th>
                 <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-primary)' }}>Status</th>
-                {event?.eventType === "MERCH" && (
+                {(event?.eventType === "MERCH" || event?.registrationFee > 0) && (
                   <th style={{ padding: '12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Payment</th>
                 )}
+                <th style={{ padding: '12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Attendance</th>
                 <th style={{ padding: '12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-primary)' }}>Actions</th>
               </tr>
             </thead>
@@ -357,7 +387,7 @@ function EventRegistrations() {
                       {reg.participationStatus === "Pending" ? "Pending" : reg.participationStatus}
                     </span>
                   </td>
-                  {event?.eventType === "MERCH" && (
+                  {(event?.eventType === "MERCH" || event?.registrationFee > 0) && (
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       {reg.paymentProof ? (
                         <button
@@ -379,6 +409,33 @@ function EventRegistrations() {
                       )}
                     </td>
                   )}
+                  <td style={{ padding: '12px', textAlign: 'center' }}>
+                    {reg.attendanceMarked ? (
+                      <div style={{ color: 'var(--success)', fontWeight: 600, fontSize: '13px', marginBottom: '6px' }}>
+                        ✓ Present
+                      </div>
+                    ) : (
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '6px' }}>
+                        -
+                      </div>
+                    )}
+                    {reg.participationStatus === "Registered" && event?.status === "ONGOING" && (
+                      <button
+                        onClick={() => handleManualAttendance(reg._id, !reg.attendanceMarked)}
+                        disabled={processing === reg._id}
+                        style={{
+                          fontSize: '11px', padding: '4px 8px', borderRadius: '4px',
+                          backgroundColor: reg.attendanceMarked ? 'transparent' : 'var(--accent)',
+                          color: reg.attendanceMarked ? 'var(--text-light)' : 'white',
+                          border: reg.attendanceMarked ? '1px solid var(--border)' : '1px solid var(--accent)',
+                          cursor: processing === reg._id ? 'not-allowed' : 'pointer',
+                          opacity: processing === reg._id ? 0.6 : 1
+                        }}
+                      >
+                        {reg.attendanceMarked ? "Mark Absent" : "Mark Present"}
+                      </button>
+                    )}
+                  </td>
                   <td style={{ padding: '12px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       {/* Approve / Reject buttons for pending orders */}
@@ -419,6 +476,26 @@ function EventRegistrations() {
                             Reject
                           </button>
                         </>
+                      )}
+                      {/* Cancel registration button for organizer */}
+                      {(reg.participationStatus === "Registered" || reg.participationStatus === "Pending") && (
+                        <button
+                          onClick={() => handleCancelRegistration(reg._id)}
+                          disabled={processing === reg._id}
+                          style={{
+                            padding: '5px 10px',
+                            background: 'transparent',
+                            color: '#dc3545',
+                            border: '1px solid #dc3545',
+                            borderRadius: '4px',
+                            cursor: processing === reg._id ? 'not-allowed' : 'pointer',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            opacity: processing === reg._id ? 0.6 : 1
+                          }}
+                        >
+                          Cancel
+                        </button>
                       )}
                       {/* View details button */}
                       <button
@@ -509,21 +586,38 @@ function EventRegistrations() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)' }}>
               {Object.entries(selectedRegistration.registrationData)
                 .filter(([key]) => key !== 'selectedVariant' && key !== 'paymentProof')
-                .map(([fieldLabel, fieldValue], idx) => (
-                  <div key={idx} style={{
-                    padding: 'var(--spacing-md)',
-                    backgroundColor: 'white',
-                    borderRadius: '4px',
-                    border: '1px solid #dee2e6'
-                  }}>
-                    <div style={{ fontWeight: 600, marginBottom: '6px', color: '#333' }}>
-                      {fieldLabel}
+                .map(([fieldLabel, fieldValue], idx) => {
+                  const strValue = Array.isArray(fieldValue) ? fieldValue.join(', ') : String(fieldValue);
+                  const isImageUrl = typeof strValue === 'string' && (strValue.match(/\.(jpg|jpeg|png|gif|webp)$/i) || strValue.startsWith('http') && strValue.includes('/uploads/'));
+                  return (
+                    <div key={idx} style={{
+                      padding: 'var(--spacing-md)',
+                      backgroundColor: 'white',
+                      borderRadius: '4px',
+                      border: '1px solid #dee2e6'
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: '6px', color: '#333' }}>
+                        {fieldLabel}
+                      </div>
+                      <div style={{ color: '#666', wordBreak: 'break-word' }}>
+                        {isImageUrl ? (
+                          <div>
+                            <img
+                              src={strValue}
+                              alt={fieldLabel}
+                              style={{ maxWidth: '200px', borderRadius: '6px', border: '1px solid var(--border)', cursor: 'pointer', marginBottom: '4px' }}
+                              onClick={() => setProofModal(strValue)}
+                            />
+                            <br />
+                            <a href={strValue} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--accent)' }}>Open file</a>
+                          </div>
+                        ) : (
+                          strValue
+                        )}
+                      </div>
                     </div>
-                    <div style={{ color: '#666', wordBreak: 'break-word' }}>
-                      {Array.isArray(fieldValue) ? fieldValue.join(', ') : String(fieldValue)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           )}
         </div>
@@ -581,6 +675,15 @@ function EventRegistrations() {
           </div>
         </div>
       )}
+
+      <QRScannerModal
+        eventId={eventId}
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={() => {
+          fetchEventAndRegistrations();
+        }}
+      />
 
       {/* Proof Image Full-Size Modal */}
       {proofModal && (

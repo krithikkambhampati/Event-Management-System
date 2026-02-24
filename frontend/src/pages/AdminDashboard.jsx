@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { adminAPI } from "../services/api";
 import '../styles/Dashboard.css';
 
 function AdminDashboard() {
@@ -8,7 +9,7 @@ function AdminDashboard() {
     activeOrganizers: 0,
     pendingPasswordResets: 0
   });
-  const [loading, setLoading] = useState(true);
+  const [setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -23,12 +24,9 @@ function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/admin/organizers", {
-        credentials: "include"
-      });
+      const { ok, data } = await adminAPI.listOrganizers();
       
-      if (res.ok) {
-        const data = await res.json();
+      if (ok) {
         const pendingCount = data.organizers?.filter(o => o.passwordResetStatus === "PENDING")?.length || 0;
         setStats({
           totalOrganizers: data.organizers?.length || 0,

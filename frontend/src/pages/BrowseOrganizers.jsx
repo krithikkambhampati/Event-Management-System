@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { organizerAPI } from "../services/api";
 import '../styles/Event.css';
 
 function BrowseOrganizers() {
@@ -21,17 +22,8 @@ function BrowseOrganizers() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:8000/api/organizers", {
-        method: "GET",
-        credentials: "include"
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to fetch organizers");
-      }
-
+      const { ok, data } = await organizerAPI.getAll();
+      if (!ok) throw new Error(data.message || "Failed to fetch organizers");
       setOrganizers(data.organizers || []);
     } catch (err) {
       setError(err.message || "Failed to fetch organizers");
@@ -42,16 +34,8 @@ function BrowseOrganizers() {
 
   const fetchFollowedOrganizers = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/organizers/followed/my-organizers", {
-        method: "GET",
-        credentials: "include"
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setFollowedOrganizers(data.followedOrganizers.map(org => org._id));
-      }
+      const { ok, data } = await organizerAPI.getFollowed();
+      if (ok) setFollowedOrganizers(data.followedOrganizers.map(org => org._id));
     } catch (err) {
       console.error("Failed to fetch followed organizers:", err);
     }
@@ -71,16 +55,9 @@ function BrowseOrganizers() {
 
     try {
       const endpoint = isFollowing ? "unfollow" : "follow";
-      const res = await fetch(`http://localhost:8000/api/organizers/${organizerId}/${endpoint}`, {
-        method: "POST",
-        credentials: "include"
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || `Failed to ${endpoint} organizer`);
-      }
+      const apiFn = isFollowing ? organizerAPI.unfollow : organizerAPI.follow;
+      const { ok, data } = await apiFn(organizerId);
+      if (!ok) throw new Error(data.message || `Failed to ${endpoint} organizer`);
 
       if (isFollowing) {
         setFollowedOrganizers(prev => prev.filter(id => id !== organizerId));
@@ -224,31 +201,31 @@ function BrowseOrganizers() {
                         </div>
                       )}
                     </div>
-
-                    {user?.role === "PARTICIPANT" && (
-                      <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-sm)' }}>
-                        <button
-                          onClick={() => navigate(`/organizers/${organizer._id}`)}
-                          className="btn-secondary"
-                          style={{ flex: 1 }}
-                        >
-                          View Details
-                        </button>
-                        <button
-                          onClick={() => handleFollowToggle(organizer._id, organizer.organizerName, isFollowing)}
-                          disabled={actionLoading === organizer._id}
-                          className={isFollowing ? "btn-secondary" : "btn-primary"}
-                          style={{ flex: 1 }}
-                        >
-                          {actionLoading === organizer._id
-                            ? "Processing..."
-                            : isFollowing
-                              ? "Unfollow"
-                              : "Follow"}
-                        </button>
-                      </div>
-                    )}
                   </div>
+
+                  {user?.role === "PARTICIPANT" && (
+                    <div className="event-card-footer" style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => navigate(`/organizers/${organizer._id}`)}
+                        className="btn-secondary"
+                        style={{ padding: '8px 16px', fontSize: 'var(--font-size-sm)' }}
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => handleFollowToggle(organizer._id, organizer.organizerName, isFollowing)}
+                        disabled={actionLoading === organizer._id}
+                        className={isFollowing ? "btn-secondary" : "btn-primary"}
+                        style={{ padding: '8px 16px', fontSize: 'var(--font-size-sm)' }}
+                      >
+                        {actionLoading === organizer._id
+                          ? "..."
+                          : isFollowing
+                            ? "Unfollow"
+                            : "Follow"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

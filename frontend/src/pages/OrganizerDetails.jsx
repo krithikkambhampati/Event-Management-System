@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { organizerAPI, eventAPI } from "../services/api";
 import '../styles/Event.css';
 
 function OrganizerDetails() {
@@ -24,25 +25,18 @@ function OrganizerDetails() {
 
         try {
             // Fetch organizer info
-            const orgRes = await fetch(`http://localhost:8000/api/organizers/${id}`, {
-                credentials: "include"
-            });
-            const orgData = await orgRes.json();
+            const { ok: orgOk, data: orgData } = await organizerAPI.getById(id);
 
-            if (!orgRes.ok) {
+            if (!orgOk) {
                 throw new Error(orgData.message || "Failed to fetch organizer");
             }
 
             setOrganizer(orgData.organizer);
 
             // Fetch published events by this organizer
-            const eventsRes = await fetch(
-                `http://localhost:8000/api/events?status=PUBLISHED`,
-                { credentials: "include" }
-            );
-            const eventsData = await eventsRes.json();
+            const { ok: eventsOk, data: eventsData } = await eventAPI.getPublished();
 
-            if (eventsRes.ok) {
+            if (eventsOk) {
                 const orgEvents = (eventsData.events || []).filter(
                     e => (e.organizer?._id || e.organizer) === id
                 );
@@ -61,12 +55,8 @@ function OrganizerDetails() {
 
     const handleFollow = async () => {
         try {
-            const res = await fetch(
-                `http://localhost:8000/api/organizers/${id}/follow`,
-                { method: "POST", credentials: "include" }
-            );
-            const data = await res.json();
-            if (res.ok) {
+            const { ok } = await organizerAPI.follow(id);
+            if (ok) {
                 await refreshUser();
             }
         } catch (err) {
@@ -76,12 +66,8 @@ function OrganizerDetails() {
 
     const handleUnfollow = async () => {
         try {
-            const res = await fetch(
-                `http://localhost:8000/api/organizers/${id}/unfollow`,
-                { method: "POST", credentials: "include" }
-            );
-            const data = await res.json();
-            if (res.ok) {
+            const { ok } = await organizerAPI.unfollow(id);
+            if (ok) {
                 await refreshUser();
             }
         } catch (err) {

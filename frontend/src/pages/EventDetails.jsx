@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { QRCodeSVG } from "qrcode.react";
 import DiscussionForum from "../components/DiscussionForum";
+import { eventAPI, registrationAPI, uploadAPI } from "../services/api";
 import '../styles/EventDetails.css';
 
 function EventDetails() {
@@ -36,17 +37,9 @@ function EventDetails() {
     setError("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/events/${eventId}`,
-        {
-          method: "GET",
-          credentials: "include"
-        }
-      );
+      const { ok, data } = await eventAPI.getById(eventId);
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to fetch event");
       }
 
@@ -105,21 +98,9 @@ function EventDetails() {
         purchaseLimitPerUser: editFormData.eventType === "MERCH" ? parseInt(editFormData.purchaseLimitPerUser) || 1 : 1
       };
 
-      const res = await fetch(
-        `http://localhost:8000/api/events/${eventId}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          credentials: "include",
-          body: JSON.stringify(dataToSend)
-        }
-      );
+      const { ok, data } = await eventAPI.update(eventId, dataToSend);
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to update event");
       }
 
@@ -137,17 +118,9 @@ function EventDetails() {
     if (user?.role !== "PARTICIPANT") return;
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/registrations/participant/my-registrations`,
-        {
-          method: "GET",
-          credentials: "include"
-        }
-      );
+      const { ok, data } = await registrationAPI.getMyRegistrations();
 
-      const data = await res.json();
-
-      if (res.ok) {
+      if (ok) {
         const existing = data.registrations.find(r => r.event._id === eventId && r.participationStatus !== "Cancelled");
         if (existing) {
           if (existing.participationStatus === "Pending") {
@@ -200,6 +173,11 @@ function EventDetails() {
       }
     }
 
+    if (event.eventType === "NORMAL" && event.registrationFee > 0 && !paymentProofUrl) {
+      setError("Please upload payment proof before registering");
+      return;
+    }
+
     setIsRegistering(true);
     setError("");
     setSuccess("");
@@ -207,21 +185,11 @@ function EventDetails() {
     try {
       const regPayload = event.eventType === "MERCH"
         ? { registrationData: { selectedVariant, paymentProof: paymentProofUrl } }
-        : { registrationData: customFieldResponses };
+        : { registrationData: { ...customFieldResponses, ...(event.registrationFee > 0 ? { paymentProof: paymentProofUrl } : {}) } };
 
-      const res = await fetch(
-        `http://localhost:8000/api/registrations/${eventId}/register`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(regPayload)
-        }
-      );
+      const { ok, data } = await registrationAPI.register(eventId, regPayload);
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to register");
       }
 
@@ -245,6 +213,36 @@ function EventDetails() {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    setError("");
+    setSuccess("");
+    try {
+      const { ok, data } = await eventAPI.update(eventId, { status: newStatus });
+      if (!ok) throw new Error(data.message || "Failed to update status");
+      setEvent(data.event);
+      setSuccess(`Event marked as ${newStatus}`);
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err) {
+      setError(err.message || "Failed to update event status");
+      setTimeout(() => setError(""), 5000);
+    }
+  };
+
+  const handlePublish = async () => {
+    setError("");
+    setSuccess("");
+    try {
+      const { ok, data } = await eventAPI.publish(eventId);
+      if (!ok) throw new Error(data.message || "Failed to publish");
+      setEvent(data.event);
+      setSuccess("Event published successfully!");
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err) {
+      setError(err.message || "Failed to publish event");
+      setTimeout(() => setError(""), 5000);
+    }
   };
 
   const isDeadlinePassed = () => {
@@ -301,11 +299,13 @@ function EventDetails() {
                 </div>
 
                 <div className="form-group">
-                  <label>Event Type</label>
-                  <select name="eventType" value={editFormData.eventType} onChange={handleEditChange}>
-                    <option value="NORMAL">Normal Event</option>
-                    <option value="MERCH">Merchandise Event</option>
-                  </select>
+                  <label>Event Type (cannot be changed)</label>
+                  <input
+                    type="text"
+                    value={editFormData.eventType === "NORMAL" ? "Normal Event" : "Merchandise Event"}
+                    disabled
+                    style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                  />
                 </div>
 
                 <div className="form-group">
@@ -537,7 +537,67 @@ function EventDetails() {
                     <button className="btn-primary" onClick={() => setIsEditing(true)}>Edit Event</button>
                   )}
                   {event.status === "DRAFT" && (
-                    <button className="btn-secondary" onClick={() => navigate(`/organizer`)}>Publish Event</button>
+                    <button className="btn-success" onClick={handlePublish}>Publish Event</button>
+                  )}
+                  {event.status === "PUBLISHED" && (
+                    <>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => navigate(`/organizer/events/${eventId}/registrations`)}
+                      >
+                        View Registrations
+                      </button>
+                      <button
+                        className="btn-danger"
+                        onClick={() => { if (window.confirm("Close registrations for this event? No new registrations will be allowed.")) handleStatusChange("CLOSED"); }}
+                      >
+                        Close Registrations
+                      </button>
+                      <button
+                        className="btn-danger"
+                        style={{ backgroundColor: '#721c24' }}
+                        onClick={() => { if (window.confirm("Cancel this event? This action cannot be undone.")) handleStatusChange("CANCELLED"); }}
+                      >
+                        Cancel Event
+                      </button>
+                    </>
+                  )}
+                  {event.status === "ONGOING" && (
+                    <>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => navigate(`/organizer/events/${eventId}/registrations`)}
+                      >
+                        View Registrations
+                      </button>
+                      <button
+                        className="btn-success"
+                        onClick={() => { if (window.confirm("Mark this event as Completed?")) handleStatusChange("COMPLETED"); }}
+                      >
+                        Mark as Completed
+                      </button>
+                      <button
+                        className="btn-danger"
+                        onClick={() => { if (window.confirm("Close this event?")) handleStatusChange("CLOSED"); }}
+                      >
+                        Close Event
+                      </button>
+                      <button
+                        className="btn-danger"
+                        style={{ backgroundColor: '#721c24' }}
+                        onClick={() => { if (window.confirm("Cancel this event? This action cannot be undone.")) handleStatusChange("CANCELLED"); }}
+                      >
+                        Cancel Event
+                      </button>
+                    </>
+                  )}
+                  {(event.status === "COMPLETED" || event.status === "CLOSED" || event.status === "CANCELLED") && (
+                    <button
+                      className="btn-secondary"
+                      onClick={() => navigate(`/organizer/events/${eventId}/registrations`)}
+                    >
+                      View Registrations & Analytics
+                    </button>
                   )}
                 </div>
               </div>
@@ -548,7 +608,7 @@ function EventDetails() {
               <div className="event-section">
                 <h2 className="event-section-title">Registration</h2>
 
-                {/* Pending approval status (MERCH) */}
+                {/* Pending approval status (MERCH or paid NORMAL) */}
                 {registrationStatus === "pending" && registrationData && (
                   <div className="registration-status" style={{
                     background: 'linear-gradient(135deg, rgba(255, 193, 7, 0.12) 0%, rgba(255, 193, 7, 0.04) 100%)',
@@ -558,10 +618,12 @@ function EventDetails() {
                     textAlign: 'center'
                   }}>
                     <p style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, color: '#856404', marginTop: '8px' }}>
-                      Order Pending Approval
+                      {event.eventType === 'MERCH' ? 'Order Pending Approval' : 'Registration Pending Approval'}
                     </p>
                     <p style={{ fontSize: 'var(--font-size-sm)', color: '#856404', opacity: 0.8 }}>
-                      Your payment proof has been submitted. The organizer will review and approve your order.
+                      {event.eventType === 'MERCH'
+                        ? 'Your payment proof has been submitted. The organizer will review and approve your order.'
+                        : 'Your payment proof has been submitted. The organizer will review and approve your registration.'}
                     </p>
                     <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-light)', marginTop: '8px' }}>
                       No QR code or ticket will be generated until your payment is approved.
@@ -574,7 +636,7 @@ function EventDetails() {
                     )}
                     <div style={{ marginTop: 'var(--spacing-md)' }}>
                       <button className="btn-secondary" onClick={() => navigate("/participation-history")}>
-                        View My Orders
+                        {event.eventType === 'MERCH' ? 'View My Orders' : 'View My Registrations'}
                       </button>
                     </div>
                   </div>
@@ -705,12 +767,25 @@ function EventDetails() {
                         )}
                       </div>
                     )}
-                    {/* Payment Proof Upload — only for MERCH events */}
-                    {event.eventType === "MERCH" && selectedVariant && (
+                    {/* Payment Proof Upload — for MERCH events and paid NORMAL events */}
+                    {((event.eventType === "MERCH" && selectedVariant) || (event.eventType === "NORMAL" && event.registrationFee > 0)) && (
                       <div style={{ marginBottom: 'var(--spacing-lg)', padding: 'var(--spacing-md)', backgroundColor: '#fff8e1', borderRadius: '8px', border: '1px solid #ffe082' }}>
                         <h3 style={{ marginBottom: 'var(--spacing-sm)', fontSize: '15px' }}>Upload Payment Proof</h3>
+                        {event.organizer?.contactNumber && (
+                          <div style={{ marginBottom: 'var(--spacing-md)', padding: '10px 14px', backgroundColor: '#fff3cd', borderRadius: '6px', border: '1px solid #ffc107', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '18px' }}>📞</span>
+                            <div>
+                              <p style={{ fontSize: '13px', fontWeight: 700, color: '#856404', margin: 0 }}>Pay to organizer:</p>
+                              <p style={{ fontSize: '15px', fontWeight: 800, color: '#533f03', margin: 0, letterSpacing: '0.5px' }}>{event.organizer.contactNumber}</p>
+                              <p style={{ fontSize: '11px', color: '#856404', margin: 0 }}>Send payment to this number, then upload screenshot below</p>
+                            </div>
+                          </div>
+                        )}
                         <p style={{ fontSize: '13px', color: '#856404', marginBottom: 'var(--spacing-md)' }}>
-                          Upload a screenshot of your payment (UPI, bank transfer, etc.). Your order will be reviewed by the organizer.
+                          {event.eventType === "MERCH"
+                            ? "Upload a screenshot of your payment (UPI, bank transfer, etc.). Your order will be reviewed by the organizer."
+                            : "Upload a screenshot of your payment (UPI, bank transfer, etc.) as proof of fee payment. You will be registered immediately after submitting."
+                          }
                         </p>
                         <input
                           type="file"
@@ -727,13 +802,8 @@ function EventDetails() {
                             try {
                               const formData = new FormData();
                               formData.append("file", file);
-                              const uploadRes = await fetch("http://localhost:8000/api/upload", {
-                                method: "POST",
-                                credentials: "include",
-                                body: formData
-                              });
-                              const uploadData = await uploadRes.json();
-                              if (uploadRes.ok) {
+                              const { ok: uploadOk, data: uploadData } = await uploadAPI.upload(formData);
+                              if (uploadOk) {
                                 setPaymentProofUrl(uploadData.file.url);
                               } else {
                                 setError(uploadData.message || "Upload failed");
@@ -866,13 +936,8 @@ function EventDetails() {
                                     try {
                                       const formData = new FormData();
                                       formData.append("file", file);
-                                      const uploadRes = await fetch("http://localhost:8000/api/upload", {
-                                        method: "POST",
-                                        credentials: "include",
-                                        body: formData
-                                      });
-                                      const uploadData = await uploadRes.json();
-                                      if (uploadRes.ok) {
+                                      const { ok: uploadOk, data: uploadData } = await uploadAPI.upload(formData);
+                                      if (uploadOk) {
                                         setCustomFieldResponses(prev => ({
                                           ...prev,
                                           [field.fieldLabel]: uploadData.file.url
@@ -884,7 +949,7 @@ function EventDetails() {
                                           [field.fieldLabel]: ""
                                         }));
                                       }
-                                    } catch  {
+                                    } catch {
                                       setError("File upload failed");
                                       setCustomFieldResponses(prev => ({
                                         ...prev,

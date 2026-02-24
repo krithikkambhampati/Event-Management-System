@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { authAPI } from "../services/api";
 
 const AuthContext = createContext();
 
@@ -8,13 +9,12 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUser = useCallback(async () => {
     try {
-      const res = await fetch(
-        "http://localhost:8000/api/auth/me",
-        { method: "GET", credentials: "include" }
-      );
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const { ok, data } = await authAPI.getMe(controller.signal);
+      clearTimeout(timeout);
 
-      if (res.ok) {
-        const data = await res.json();
+      if (ok) {
         setUser(data.user);
         return data.user;
       } else {

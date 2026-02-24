@@ -8,7 +8,8 @@ import {
   resetOrganizerPassword,
   getPasswordResetRequests,
   approvePasswordResetRequest,
-  rejectPasswordResetRequest
+  rejectPasswordResetRequest,
+  getPasswordResetHistory
 } from "../controllers/admin.controller.js";
 const router = express.Router();
 
@@ -74,6 +75,13 @@ router.post(
   verifyToken,
   requireAdmin,
   rejectPasswordResetRequest
+);
+
+router.get(
+  "/password-reset-history",
+  verifyToken,
+  requireAdmin,
+  getPasswordResetHistory
 );
 
 export default router;

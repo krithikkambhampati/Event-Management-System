@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { adminAPI } from "../services/api";
 import '../styles/Dashboard.css';
 
 function OrganizersList() {
@@ -14,14 +15,9 @@ function OrganizersList() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:8000/api/admin/organizers", {
-        method: "GET",
-        credentials: "include"
-      });
+      const { ok, data } = await adminAPI.listOrganizers();
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to fetch organizers");
       }
 
@@ -42,18 +38,8 @@ function OrganizersList() {
     setError("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/admin/organizers/${organizer._id}/status`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ isActive: !organizer.isActive })
-        }
-      );
-
-      const data = await res.json();
-      if (!res.ok) {
+      const { ok, data } = await adminAPI.updateOrganizerStatus(organizer._id, { isActive: !organizer.isActive });
+      if (!ok) {
         throw new Error(data.message || "Failed to update organizer status");
       }
 
@@ -77,13 +63,8 @@ function OrganizersList() {
     setError("");
 
     try {
-      const res = await fetch(`http://localhost:8000/api/admin/organizers/${organizerId}`, {
-        method: "DELETE",
-        credentials: "include"
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
+      const { ok, data } = await adminAPI.deleteOrganizer(organizerId);
+      if (!ok) {
         throw new Error(data.message || "Failed to delete organizer");
       }
 
@@ -105,16 +86,8 @@ function OrganizersList() {
     setError("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/admin/organizers/${organizerId}/reset-password`,
-        {
-          method: "POST",
-          credentials: "include"
-        }
-      );
-
-      const data = await res.json();
-      if (!res.ok) {
+      const { ok, data } = await adminAPI.resetOrganizerPassword(organizerId);
+      if (!ok) {
         throw new Error(data.message || "Failed to reset password");
       }
 

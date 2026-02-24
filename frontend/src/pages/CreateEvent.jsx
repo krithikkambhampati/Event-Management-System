@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { eventAPI } from "../services/api";
 import '../styles/CreateEvent.css';
 
 function CreateEvent() {
@@ -187,19 +188,9 @@ function CreateEvent() {
         purchaseLimitPerUser: formData.eventType === "MERCH" ? parseInt(formData.purchaseLimitPerUser) || 1 : 1
       };
 
-      const res = await fetch(
-        `http://localhost:8000/api/events/organizer/${user._id}/create`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(eventData)
-        }
-      );
+      const { ok, data } = await eventAPI.create(user._id, eventData);
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to create event");
       }
 
@@ -237,7 +228,7 @@ function CreateEvent() {
   return (
     <div className="create-container">
       <div className="create-header">
-        <h1>Create New Event</h1>
+        <h1>Create Event</h1>
         <p>Fill in the details to create a new event as a draft</p>
       </div>
 

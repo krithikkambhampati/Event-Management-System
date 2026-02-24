@@ -96,7 +96,6 @@ export const handleFollowOrganizer = async (req, res) => {
   }
 };
 
-// Unfollow an organizer
 export const handleUnfollowOrganizer = async (req, res) => {
   try {
     const { organizerId } = req.params;
@@ -110,7 +109,6 @@ export const handleUnfollowOrganizer = async (req, res) => {
       });
     }
 
-    // Remove from followedOrganizers
     participant.followedOrganizers = participant.followedOrganizers.filter(
       id => id.toString() !== organizerId
     );
@@ -141,7 +139,6 @@ export const handleUnfollowOrganizer = async (req, res) => {
   }
 };
 
-// Get followed organizers for a participant
 export const handleGetFollowedOrganizers = async (req, res) => {
   try {
     const participantId = req.user.id;
@@ -162,7 +159,6 @@ export const handleGetFollowedOrganizers = async (req, res) => {
   }
 };
 
-// Update organizer profile
 export const handleUpdateOrganizerProfile = async (req, res) => {
   try {
     const { id } = req.params;
@@ -181,6 +177,13 @@ export const handleUpdateOrganizerProfile = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "All fields are required"
+      });
+    }
+
+    if (!/^\d{10}$/.test(contactNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: "Contact number must be exactly 10 digits"
       });
     }
 
@@ -251,9 +254,14 @@ export const handleRequestPasswordReset = async (req, res) => {
   try {
     const { id } = req.params;
     const organizerId = req.user.id;
+    const { reason } = req.body;
 
     if (id !== organizerId) {
       return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    if (!reason || reason.trim().length === 0) {
+      return res.status(400).json({ message: "Please provide a reason for the password reset request" });
     }
 
     const organizer = await Organizer.findById(id);
@@ -267,6 +275,7 @@ export const handleRequestPasswordReset = async (req, res) => {
 
     organizer.passwordResetStatus = "PENDING";
     organizer.passwordResetRequestedAt = new Date();
+    organizer.passwordResetReason = reason.trim();
     await organizer.save();
 
     res.status(200).json({

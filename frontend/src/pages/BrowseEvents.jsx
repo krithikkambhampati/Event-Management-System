@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Fuse from 'fuse.js';
+import { eventAPI } from "../services/api";
 import '../styles/Event.css';
 
 function BrowseEvents() {
@@ -30,17 +32,9 @@ function BrowseEvents() {
     setError("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/events?status=PUBLISHED`,
-        {
-          method: "GET",
-          credentials: "include"
-        }
-      );
+      const { ok, data } = await eventAPI.getPublished();
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to fetch events");
       }
 
@@ -85,13 +79,17 @@ function BrowseEvents() {
 
     // Fuzzy search — includes organizer name
     if (searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(e =>
-        e.eventName.toLowerCase().includes(query) ||
-        e.description.toLowerCase().includes(query) ||
-        (e.organizer?.organizerName && e.organizer.organizerName.toLowerCase().includes(query)) ||
-        (e.tags && e.tags.some(tag => tag.toLowerCase().includes(query)))
-      );
+      const fuse = new Fuse(filtered, {
+        keys: [
+          'eventName',
+          'description',
+          'organizer.organizerName',
+          'tags'
+        ],
+        threshold: 0.4,
+        ignoreLocation: true
+      });
+      filtered = fuse.search(searchQuery).map(result => result.item);
     }
 
     // Apply sorting based on preference
@@ -189,6 +187,9 @@ function BrowseEvents() {
       </div>
 
       <div className="event-filters">
+        <p style={{ width: '100%', fontSize: 'var(--font-size-sm)', color: 'var(--text-light)', marginBottom: 'var(--spacing-sm)', fontStyle: 'italic' }}>
+          By default, events are sorted by relevance: events from clubs you follow and matching your interests appear first, then by popularity.
+        </p>
         <div className="event-filter-group">
           <label>Event Type</label>
           <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
@@ -196,6 +197,7 @@ function BrowseEvents() {
             <option value="NORMAL">Normal Events</option>
             <option value="MERCH">Merchandise Events</option>
           </select>
+          <small style={{ color: 'var(--text-light)', fontSize: '11px' }}>Filter by normal events or merchandise/merch drops</small>
         </div>
 
         <div className="event-filter-group">
@@ -206,6 +208,7 @@ function BrowseEvents() {
             <option value="NON_IIIT">Non-IIIT Only</option>
             <option value="BOTH">Open to All</option>
           </select>
+          <small style={{ color: 'var(--text-light)', fontSize: '11px' }}>Filter by who can register — IIIT students, outsiders, or both</small>
         </div>
 
         <div className="event-filter-group">
@@ -214,6 +217,7 @@ function BrowseEvents() {
             <option value="all">Most Relevant</option>
             <option value="trending">Trending (24h)</option>
           </select>
+          <small style={{ color: 'var(--text-light)', fontSize: '11px' }}>Relevant = followed clubs + your interests first. Trending = most registrations in last 24h</small>
         </div>
 
         {user?.followedOrganizers?.length > 0 && (
@@ -223,6 +227,7 @@ function BrowseEvents() {
               <option value="all">All Organizers</option>
               <option value="followed">Followed Only</option>
             </select>
+            <small style={{ color: 'var(--text-light)', fontSize: '11px' }}>Show only events from clubs you follow</small>
           </div>
         )}
 
@@ -307,15 +312,32 @@ function BrowseEvents() {
                   </div>
 
                   {event.tags && event.tags.length > 0 && (
-                    <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                      <span className="text-secondary" style={{ fontSize: 'var(--font-size-sm)' }}>
-                        {event.tags.join(", ")}
-                      </span>
+                    <div style={{ marginBottom: 'var(--spacing-md)', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {event.tags.map((tag, idx) => (
+                        <span key={idx} style={{
+                          display: 'inline-block',
+                          padding: '3px 10px',
+                          backgroundColor: 'rgba(197, 168, 212, 0.15)',
+                          color: 'var(--accent)',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          border: '1px solid rgba(197, 168, 212, 0.3)'
+                        }}>{tag}</span>
+                      ))}
                     </div>
                   )}
 
                   <div style={{ marginTop: 'auto', paddingTop: 'var(--spacing-md)' }}>
-                    {isRegistrationOpen(event) ? (
+                    {event.status === "CANCELLED" ? (
+                      <p className="text-error" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
+                        Event Cancelled
+                      </p>
+                    ) : event.status === "CLOSED" ? (
+                      <p className="text-error" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
+                        Registrations Closed
+                      </p>
+                    ) : isRegistrationOpen(event) ? (
                       <p className="text-success" style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
                         Registration Open
                       </p>

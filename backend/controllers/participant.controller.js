@@ -6,7 +6,10 @@ export const handleSignupParticipant = async (req, res) => {
   try {
     const { email, participantType, interests = [], captchaToken } = req.body;
 
-    // Verify reCAPTCHA
+    if (email === process.env.EMAIL_USER) {
+      return res.status(400).json({ message: "This email is reserved for system use" });
+    }
+
     const captchaResult = await verifyCaptcha(captchaToken);
     if (!captchaResult.success) {
       return res.status(400).json({ message: captchaResult.message });
@@ -17,7 +20,6 @@ export const handleSignupParticipant = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // Validate interests if provided
     if (interests.length > 0) {
       const invalidInterests = interests.filter(interest => !VALID_INTERESTS.includes(interest));
       if (invalidInterests.length > 0) {
@@ -27,11 +29,11 @@ export const handleSignupParticipant = async (req, res) => {
       }
     }
 
-    // email verification
     if (participantType === "IIIT") {
       const validDomains = [
         "@students.iiit.ac.in",
-        "@research.iiit.ac.in"
+        "@research.iiit.ac.in",
+        "@iiit.ac.in"
       ];
 
       const isValid = validDomains.some(domain =>
@@ -49,7 +51,8 @@ export const handleSignupParticipant = async (req, res) => {
     if (participantType === "NON_IIIT") {
       const iiitDomains = [
         "@students.iiit.ac.in",
-        "@research.iiit.ac.in"
+        "@research.iiit.ac.in",
+        "@iiit.ac.in"
       ];
 
       const isIIITDomain = iiitDomains.some(domain =>
@@ -62,6 +65,16 @@ export const handleSignupParticipant = async (req, res) => {
         });
       }
     }
+    const { contactNumber } = req.body;
+    if (!contactNumber || !/^\d{10}$/.test(contactNumber)) {
+      return res.status(400).json({ message: "Contact number must be exactly 10 digits" });
+    }
+
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
     const participant = await Participant.create({
       ...req.body,
       interests: interests.length > 0 ? interests : []
@@ -99,7 +112,10 @@ export const handleUpdateParticipant = async (req, res) => {
       participant.interests = interests;
     }
 
-    // Update profile fields
+    if (contactNumber !== undefined && !/^\d{10}$/.test(contactNumber)) {
+      return res.status(400).json({ message: "Contact number must be exactly 10 digits" });
+    }
+
     if (fName !== undefined) participant.fName = fName;
     if (lName !== undefined) participant.lName = lName;
     if (collegeName !== undefined) participant.collegeName = collegeName;
@@ -151,6 +167,10 @@ export const handleChangePassword = async (req, res) => {
     const isPasswordValid = await participant.comparePassword(oldPassword);
     if (!isPasswordValid) {
       return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters" });
     }
 
     if (oldPassword === newPassword) {

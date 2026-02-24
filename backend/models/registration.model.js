@@ -57,6 +57,17 @@ const registrationSchema = new mongoose.Schema(
       default: null
     },
 
+    scannedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organizer",
+      default: null
+    },
+
+    manualOverrideReason: {
+      type: String,
+      default: null
+    },
+
     registeredAt: {
       type: Date,
       default: Date.now

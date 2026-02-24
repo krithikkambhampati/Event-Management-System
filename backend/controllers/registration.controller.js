@@ -34,7 +34,7 @@ export const handleRegisterParticipant = async (req, res) => {
 
     if (event.status !== "PUBLISHED") {
       return res.status(400).json({
-        message: "Event must be PUBLISHED to register"
+        message: event.status === "CLOSED" ? "Registrations for this event are closed" : event.status === "CANCELLED" ? "This event has been cancelled" : "Event must be PUBLISHED to register"
       });
     }
 
@@ -104,7 +104,6 @@ export const handleRegisterParticipant = async (req, res) => {
         return res.status(400).json({ message: `Variant "${selectedVariant}" is out of stock` });
       }
 
-      // Check purchase limit per user
       if (event.purchaseLimitPerUser) {
         const userPurchases = await Registration.countDocuments({
           participant: participantId,
@@ -118,13 +117,11 @@ export const handleRegisterParticipant = async (req, res) => {
         }
       }
 
-      // Payment proof is required for MERCH events
       const paymentProof = registrationData?.paymentProof;
       if (!paymentProof) {
         return res.status(400).json({ message: "Payment proof is required for merchandise purchases" });
       }
 
-      // DO NOT decrement stock here — only on approval
       const ticketId = generateTicketId(event.eventName, eventId);
 
       const registration = await Registration.create({
@@ -142,8 +139,6 @@ export const handleRegisterParticipant = async (req, res) => {
         { path: "participant", select: "fName lName email" }
       ]);
 
-      // NO email sent for pending orders — email is sent only on approval
-
       return res.status(201).json({
         message: "Order placed! Awaiting organizer approval.",
         registration,
@@ -152,7 +147,13 @@ export const handleRegisterParticipant = async (req, res) => {
       });
     }
 
-    // NORMAL event flow 
+    const hasPaymentFee = event.registrationFee > 0;
+    const paymentProof = registrationData?.paymentProof;
+
+    if (hasPaymentFee && !paymentProof) {
+      return res.status(400).json({ message: "Payment proof is required for this paid event" });
+    }
+
     const ticketId = generateTicketId(event.eventName, eventId);
 
     const registration = await Registration.create({
@@ -160,8 +161,9 @@ export const handleRegisterParticipant = async (req, res) => {
       event: eventId,
       ticketId,
       registrationData: registrationData || {},
-      participationStatus: "Registered",
-      paymentStatus: "Not Required"
+      participationStatus: hasPaymentFee ? "Pending" : "Registered",
+      paymentProof: hasPaymentFee ? paymentProof : undefined,
+      paymentStatus: hasPaymentFee ? "Pending" : "Not Required"
     });
 
     await registration.populate([
@@ -169,12 +171,20 @@ export const handleRegisterParticipant = async (req, res) => {
       { path: "participant", select: "fName lName email" }
     ]);
 
-    // Send ticket email to participant (non-blocking)
-    const participant = await Participant.findById(participantId).select("fName lName email");
-    if (participant) {
+    if (hasPaymentFee) {
+      return res.status(201).json({
+        message: "Registration submitted! Awaiting payment approval.",
+        registration,
+        ticketId: registration.ticketId,
+        isPending: true
+      });
+    }
+
+    const participantObj = await Participant.findById(participantId).select("fName lName email");
+    if (participantObj) {
       sendTicketEmail({
-        to: participant.email,
-        participantName: `${participant.fName} ${participant.lName}`,
+        to: participantObj.email,
+        participantName: `${participantObj.fName} ${participantObj.lName}`,
         eventName: event.eventName,
         ticketId: registration.ticketId,
         eventDate: event.startDate,
@@ -197,7 +207,6 @@ export const handleRegisterParticipant = async (req, res) => {
   }
 };
 
-// Organizer approves a pending merch payment
 export const handleApprovePayment = async (req, res) => {
   try {
     const { registrationId } = req.params;
@@ -217,9 +226,8 @@ export const handleApprovePayment = async (req, res) => {
       return res.status(400).json({ message: `Cannot approve — payment is already ${registration.paymentStatus}` });
     }
 
-    // Decrement stock atomically
     const selectedVariant = registration.registrationData?.selectedVariant;
-    if (selectedVariant) {
+    if (registration.event.eventType === "MERCH" && selectedVariant) {
       const updateResult = await Event.updateOne(
         { _id: registration.event._id, "merchandiseVariants.name": selectedVariant, "merchandiseVariants.stock": { $gt: 0 } },
         { $inc: { "merchandiseVariants.$.stock": -1 } }
@@ -234,7 +242,6 @@ export const handleApprovePayment = async (req, res) => {
     registration.paymentStatus = "Approved";
     await registration.save();
 
-    // Send confirmation email with QR (now that payment is approved)
     if (registration.participant) {
       sendTicketEmail({
         to: registration.participant.email,
@@ -258,7 +265,6 @@ export const handleApprovePayment = async (req, res) => {
   }
 };
 
-// Organizer rejects a pending merch payment
 export const handleRejectPayment = async (req, res) => {
   try {
     const { registrationId } = req.params;
@@ -278,7 +284,6 @@ export const handleRejectPayment = async (req, res) => {
       return res.status(400).json({ message: `Cannot reject — payment is already ${registration.paymentStatus}` });
     }
 
-    // No stock change needed — stock was never decremented
     registration.participationStatus = "Cancelled";
     registration.paymentStatus = "Rejected";
     registration.rejectionReason = reason || "Payment rejected by organizer";
@@ -378,20 +383,20 @@ export const handleGetEventRegistrations = async (req, res) => {
 export const handleCancelRegistration = async (req, res) => {
   try {
     const { registrationId } = req.params;
-    const participantId = req.user.id;
+    const organizerId = req.user.id;
 
     if (!mongoose.Types.ObjectId.isValid(registrationId)) {
       return res.status(400).json({ message: "Invalid registration ID format" });
     }
 
-    const registration = await Registration.findById(registrationId);
+    const registration = await Registration.findById(registrationId).populate("event");
     if (!registration) {
       return res.status(404).json({ message: "Registration not found" });
     }
 
-    if (registration.participant.toString() !== participantId.toString()) {
+    if (registration.event.organizer.toString() !== organizerId.toString()) {
       return res.status(403).json({
-        message: "Forbidden: Cannot cancel someone else's registration"
+        message: "Forbidden: Can only cancel registrations for your own events"
       });
     }
 
@@ -410,15 +415,15 @@ export const handleCancelRegistration = async (req, res) => {
     registration.participationStatus = "Cancelled";
     if (registration.paymentStatus === "Pending") {
       registration.paymentStatus = "Rejected";
-      registration.rejectionReason = "Cancelled by participant";
+      registration.rejectionReason = "Cancelled by organizer";
     }
     await registration.save();
 
     if (registration.paymentStatus === "Approved" && registration.registrationData?.selectedVariant) {
-      const event = await Event.findById(registration.event);
+      const event = await Event.findById(registration.event._id);
       if (event && event.eventType === "MERCH") {
         await Event.updateOne(
-          { _id: registration.event, "merchandiseVariants.name": registration.registrationData.selectedVariant },
+          { _id: registration.event._id, "merchandiseVariants.name": registration.registrationData.selectedVariant },
           { $inc: { "merchandiseVariants.$.stock": 1 } }
         );
       }
@@ -435,5 +440,106 @@ export const handleCancelRegistration = async (req, res) => {
       message: "Internal server error",
       error: error.message
     });
+  }
+};
+
+export const handleScanQR = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { ticketId } = req.body;
+    const organizerId = req.user.id;
+
+    if (!ticketId) {
+      return res.status(400).json({ message: "Ticket ID is required" });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    if (event.organizer.toString() !== organizerId.toString()) {
+      return res.status(403).json({ message: "Forbidden: Not your event" });
+    }
+
+    const registration = await Registration.findOne({ event: eventId, ticketId }).populate("participant", "fName lName email");
+
+    if (!registration) {
+      return res.status(404).json({ message: "Invalid ticket: Registration not found for this event" });
+    }
+
+    if (registration.participationStatus === "Cancelled") {
+      return res.status(400).json({ message: "Ticket invalid: Registration was cancelled" });
+    }
+
+    if (registration.paymentStatus === "Pending") {
+      return res.status(400).json({ message: "Ticket invalid: Payment is pending approval" });
+    }
+
+    if (registration.attendanceMarked) {
+      return res.status(400).json({
+        message: "Ticket already scanned!",
+        scannedAt: registration.attendedAt,
+        participant: registration.participant
+      });
+    }
+
+    registration.attendanceMarked = true;
+    registration.attendedAt = new Date();
+    registration.scannedBy = organizerId;
+    await registration.save();
+
+    res.status(200).json({
+      message: "Attendance marked successfully",
+      participant: registration.participant,
+      registration
+    });
+
+  } catch (error) {
+    console.error("handleScanQR error:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const handleManualAttendance = async (req, res) => {
+  try {
+    const { registrationId } = req.params;
+    const { reason, markAs } = req.body;
+    const organizerId = req.user.id;
+
+    const registration = await Registration.findById(registrationId).populate("event");
+    if (!registration) {
+      return res.status(404).json({ message: "Registration not found" });
+    }
+
+    if (registration.event.organizer.toString() !== organizerId.toString()) {
+      return res.status(403).json({ message: "Forbidden: Not your event" });
+    }
+
+    if (registration.participationStatus === "Cancelled") {
+      return res.status(400).json({ message: "Cannot mark attendance for cancelled registration" });
+    }
+
+    const isAttending = markAs !== undefined ? markAs : true;
+
+    if (isAttending && registration.paymentStatus === "Pending") {
+      return res.status(400).json({ message: "Cannot mark attendance: Payment is pending" });
+    }
+
+    registration.attendanceMarked = isAttending;
+    registration.attendedAt = isAttending ? new Date() : null;
+    registration.scannedBy = isAttending ? organizerId : null;
+    registration.manualOverrideReason = reason || "Manual override by organizer";
+
+    await registration.save();
+
+    res.status(200).json({
+      message: `Attendance manually marked as ${isAttending ? 'Present' : 'Absent'}`,
+      registration
+    });
+
+  } catch (error) {
+    console.error("handleManualAttendance error:", error.message);
+    res.status(500).json({ message: "Internal server error" });
   }
 };

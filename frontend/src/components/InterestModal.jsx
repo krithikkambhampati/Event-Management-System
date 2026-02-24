@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { AVAILABLE_INTERESTS } from "../constants/interests";
+import { organizerAPI, participantAPI } from "../services/api";
 import "../styles/InterestModal.css";
 
-function InterestModal({ onClose, onSave, user }) {
+function InterestModal({ onClose, onSave, user, refreshUser }) {
   const [step, setStep] = useState(1); // Step 1: Interests, Step 2: Follow Organizers
   const [selectedInterests, setSelectedInterests] = useState(user?.interests || []);
   const [organizers, setOrganizers] = useState([]);
@@ -17,14 +18,11 @@ function InterestModal({ onClose, onSave, user }) {
   const fetchOrganizers = async () => {
     setLoadingOrgs(true);
     try {
-      const res = await fetch("http://localhost:8000/api/organizers", {
-        credentials: "include"
-      });
-      const data = await res.json();
-      if (res.ok) {
+      const { ok, data } = await organizerAPI.getAll();
+      if (ok) {
         setOrganizers(data.organizers || []);
       }
-    } catch (err) {
+    } catch  {
       // Silently fail — organizers list is optional
     } finally {
       setLoadingOrgs(false);
@@ -55,22 +53,16 @@ function InterestModal({ onClose, onSave, user }) {
     setIsLoading(true);
     try {
       // Save interests
-      const res = await fetch(`http://localhost:8000/api/participants/${user._id}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interests: selectedInterests })
-      });
+      const { ok } = await participantAPI.update(user._id, { interests: selectedInterests });
 
       // Follow selected organizers
       for (const orgId of selectedOrganizers) {
-        await fetch(`http://localhost:8000/api/organizers/${orgId}/follow`, {
-          method: "POST",
-          credentials: "include"
-        });
+        await organizerAPI.follow(orgId);
       }
 
-      if (res.ok) {
+      if (ok) {
+        // Refresh user data so interests are immediately reflected
+        if (refreshUser) await refreshUser();
         onSave(selectedInterests);
         onClose();
       }
@@ -139,7 +131,7 @@ function InterestModal({ onClose, onSave, user }) {
           </p>
           <button
             className="modal-btn modal-btn-secondary"
-            onClick={step === 1 ? onClose : () => { onSave(selectedInterests); onClose(); }}
+            onClick={step === 1 ? onClose : async () => { if (refreshUser) await refreshUser(); onSave(selectedInterests); onClose(); }}
             disabled={isLoading}
           >
             Skip {step === 1 ? "for now" : "this step"}

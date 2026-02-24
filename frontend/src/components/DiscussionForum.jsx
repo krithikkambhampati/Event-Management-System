@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
+import { discussionAPI } from "../services/api";
 
 function DiscussionForum({ eventId, isOrganizer }) {
     const { user } = useAuth();
@@ -9,19 +10,34 @@ function DiscussionForum({ eventId, isOrganizer }) {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const [error, setError] = useState("");
+    const [everyoneAlert, setEveryoneAlert] = useState("");
     const messagesEndRef = useRef(null);
     const pollRef = useRef(null);
+    // Ref to always hold latest messages for stale-closure-safe polling comparison
+    const messagesRef = useRef([]);
 
     const fetchMessages = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/api/discussions/${eventId}/messages`, {
-                credentials: "include"
-            });
-            const data = await res.json();
-            if (res.ok) {
-                setMessages(data.messages || []);
+            const { ok, data } = await discussionAPI.getMessages(eventId);
+            if (ok) {
+                const newMessages = data.messages || [];
+                const prevMessages = messagesRef.current;
+                if (prevMessages.length > 0) {
+                    const existingIds = new Set(prevMessages.map(m => m._id));
+                    const newlyAdded = newMessages.filter(m => !existingIds.has(m._id));
+                    const hasNewEveryone = newlyAdded.some(m =>
+                        m.senderRole === "Organizer" && m.content.includes("@everyone")
+                    );
+
+                    if (hasNewEveryone && (!user || user.role !== "ORGANIZER")) {
+                        setEveryoneAlert("📢 An Organizer has tagged @everyone in a new message!");
+                        setTimeout(() => setEveryoneAlert(""), 10000);
+                    }
+                }
+                messagesRef.current = newMessages;
+                setMessages(newMessages);
             }
-        } catch  {
+        } catch {
             console.error("Failed to fetch messages");
         } finally {
             setLoading(false);
@@ -49,18 +65,11 @@ function DiscussionForum({ eventId, isOrganizer }) {
         setError("");
 
         try {
-            const res = await fetch(`http://localhost:8000/api/discussions/${eventId}/messages`, {
-                method: "POST",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    content: newMessage.trim(),
-                    parentMessage: replyTo?._id || null
-                })
+            const { ok, data } = await discussionAPI.postMessage(eventId, {
+                content: newMessage.trim(),
+                parentMessage: replyTo?._id || null
             });
-
-            const data = await res.json();
-            if (res.ok) {
+            if (ok) {
                 setNewMessage("");
                 setReplyTo(null);
                 fetchMessages();
@@ -76,11 +85,8 @@ function DiscussionForum({ eventId, isOrganizer }) {
 
     const handleDelete = async (messageId) => {
         try {
-            const res = await fetch(`http://localhost:8000/api/discussions/messages/${messageId}`, {
-                method: "DELETE",
-                credentials: "include"
-            });
-            if (res.ok) fetchMessages();
+            const { ok } = await discussionAPI.deleteMessage(messageId);
+            if (ok) fetchMessages();
         } catch {
             console.error("Delete failed");
         }
@@ -88,26 +94,18 @@ function DiscussionForum({ eventId, isOrganizer }) {
 
     const handlePin = async (messageId) => {
         try {
-            const res = await fetch(`http://localhost:8000/api/discussions/messages/${messageId}/pin`, {
-                method: "PATCH",
-                credentials: "include"
-            });
-            if (res.ok) fetchMessages();
-        } catch  {
+            const { ok } = await discussionAPI.togglePin(messageId);
+            if (ok) fetchMessages();
+        } catch {
             console.error("Pin failed");
         }
     };
 
     const handleReact = async (messageId, reaction) => {
         try {
-            const res = await fetch(`http://localhost:8000/api/discussions/messages/${messageId}/react`, {
-                method: "POST",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reaction })
-            });
-            if (res.ok) fetchMessages();
-        } catch  {
+            const { ok } = await discussionAPI.react(messageId, { reaction });
+            if (ok) fetchMessages();
+        } catch {
             console.error("React failed");
         }
     };
@@ -129,12 +127,12 @@ function DiscussionForum({ eventId, isOrganizer }) {
 
     const getReplies = (parentId) => replies.filter(r => r.parentMessage?.toString() === parentId?.toString());
 
-    const renderMessage = (msg, isReply = false) => {
+    const renderMessage = (msg, depth = 0) => {
         const isOwn = user && msg.sender === user._id;
         const msgReplies = getReplies(msg._id);
 
         return (
-            <div key={msg._id} style={{ marginLeft: isReply ? '24px' : '0', marginBottom: '4px' }}>
+            <div key={msg._id} style={{ marginLeft: depth > 0 ? '24px' : '0', marginBottom: '4px' }}>
                 <div style={{
                     padding: '10px 14px',
                     borderRadius: '10px',
@@ -182,7 +180,11 @@ function DiscussionForum({ eventId, isOrganizer }) {
 
                     {/* Content */}
                     <p style={{ margin: '0 0 8px', fontSize: '14px', color: 'var(--text-primary)', lineHeight: '1.5', wordBreak: 'break-word' }}>
-                        {msg.content}
+                        {msg.content.split(' ').map((word, i) =>
+                            word === '@everyone'
+                                ? <span key={i} style={{ backgroundColor: 'var(--accent)', color: 'white', padding: '0 4px', borderRadius: '4px', fontWeight: 600 }}>@everyone </span>
+                                : `${word} `
+                        )}
                     </p>
 
                     {/* Actions Row */}
@@ -215,7 +217,7 @@ function DiscussionForum({ eventId, isOrganizer }) {
                         })}
 
                         {/* Reply */}
-                        {!isReply && (
+                        {depth < 3 && (
                             <button
                                 onClick={() => setReplyTo(msg)}
                                 style={{
@@ -228,7 +230,7 @@ function DiscussionForum({ eventId, isOrganizer }) {
                         )}
 
                         {/* Pin (organizer only) */}
-                        {isOrganizer && !isReply && (
+                        {isOrganizer && depth === 0 && (
                             <button
                                 onClick={() => handlePin(msg._id)}
                                 style={{
@@ -257,8 +259,8 @@ function DiscussionForum({ eventId, isOrganizer }) {
 
                 {/* Render replies */}
                 {msgReplies.length > 0 && (
-                    <div style={{ marginTop: '4px' }}>
-                        {msgReplies.map(r => renderMessage(r, true))}
+                    <div style={{ marginTop: '4px', borderLeft: '2px solid var(--border)', paddingLeft: '8px' }}>
+                        {msgReplies.map(r => renderMessage(r, depth + 1))}
                     </div>
                 )}
             </div>
@@ -286,6 +288,24 @@ function DiscussionForum({ eventId, isOrganizer }) {
                     {messages.length} message{messages.length !== 1 ? 's' : ''}
                 </span>
             </div>
+
+            {/* Everyone Alert */}
+            {everyoneAlert && (
+                <div style={{
+                    padding: '10px 16px',
+                    backgroundColor: 'rgba(255, 193, 7, 0.15)',
+                    borderLeft: '4px solid #ffc107',
+                    color: '#856404',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                }}>
+                    <span>📢 {everyoneAlert}</span>
+                    <button onClick={() => setEveryoneAlert("")} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#856404' }}>×</button>
+                </div>
+            )}
 
             {/* Messages Area */}
             <div style={{

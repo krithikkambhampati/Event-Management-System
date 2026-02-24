@@ -92,10 +92,27 @@ export const handleGetOrganizerEvents = async (req, res) => {
       .populate("organizer", "organizerName organizerEmail")
       .sort({ createdAt: -1 });
 
+    const now = new Date();
+    const updatedEvents = events.map(event => {
+      let eventData = event.toObject();
+      if (eventData.status === "PUBLISHED" || eventData.status === "ONGOING") {
+        if (now > new Date(eventData.endDate)) {
+          eventData.status = "COMPLETED";
+          event.status = "COMPLETED";
+          event.save().catch(e => console.error(e));
+        } else if (eventData.status === "PUBLISHED" && now >= new Date(eventData.startDate) && now <= new Date(eventData.endDate)) {
+          eventData.status = "ONGOING";
+          event.status = "ONGOING";
+          event.save().catch(e => console.error(e));
+        }
+      }
+      return eventData;
+    });
+
     res.status(200).json({
       message: "Events fetched successfully",
-      events,
-      count: events.length
+      events: updatedEvents,
+      count: updatedEvents.length
     });
 
   } catch (error) {
@@ -117,7 +134,7 @@ export const handleGetSingleEvent = async (req, res) => {
     }
 
     const event = await Event.findById(eventId)
-      .populate("organizer", "organizerName category contactEmail");
+      .populate("organizer", "organizerName category contactEmail contactNumber");
 
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
@@ -145,11 +162,12 @@ export const handleGetSingleEvent = async (req, res) => {
 
 export const handleGetPublishedEvents = async (req, res) => {
   try {
-    const events = await Event.find({ status: "PUBLISHED" })
+    const events = await Event.find({ status: { $in: ["PUBLISHED", "ONGOING", "COMPLETED", "CANCELLED", "CLOSED"] } })
       .populate("organizer", "organizerName organizerEmail category")
       .sort({ createdAt: -1 });
 
     const { Registration } = await import("../models/registration.model.js");
+    const now = new Date();
     const eventsWithCounts = await Promise.all(
       events.map(async (event) => {
         const registeredCount = await Registration.countDocuments({
@@ -159,9 +177,23 @@ export const handleGetPublishedEvents = async (req, res) => {
         const recentRegistrations = await Registration.countDocuments({
           event: event._id,
           participationStatus: { $ne: "Cancelled" },
-          registeredAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+          registeredAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) }
         });
-        const eventData = event.toObject();
+
+        let eventData = event.toObject();
+
+        if (eventData.status === "PUBLISHED" || eventData.status === "ONGOING") {
+          if (now > new Date(eventData.endDate)) {
+            eventData.status = "COMPLETED";
+            event.status = "COMPLETED";
+            event.save().catch(e => console.error(e));
+          } else if (eventData.status === "PUBLISHED" && now >= new Date(eventData.startDate) && now <= new Date(eventData.endDate)) {
+            eventData.status = "ONGOING";
+            event.status = "ONGOING";
+            event.save().catch(e => console.error(e));
+          }
+        }
+
         eventData.registeredCount = registeredCount;
         eventData.recentRegistrations = recentRegistrations;
         return eventData;
@@ -197,7 +229,6 @@ export const handleUpdateEvent = async (req, res) => {
     if (event.status === "DRAFT") {
       event.eventName = updateData.eventName || event.eventName;
       event.description = updateData.description || event.description;
-      event.eventType = updateData.eventType || event.eventType;
       event.eligibility = updateData.eligibility || event.eligibility;
       event.registrationDeadline = updateData.registrationDeadline || event.registrationDeadline;
       event.startDate = updateData.startDate || event.startDate;
@@ -222,8 +253,11 @@ export const handleUpdateEvent = async (req, res) => {
       if (updateData.description) event.description = updateData.description;
       if (updateData.registrationDeadline) event.registrationDeadline = updateData.registrationDeadline;
       if (updateData.registrationLimit !== undefined) event.registrationLimit = updateData.registrationLimit;
+      if (updateData.status && ["CLOSED", "CANCELLED"].includes(updateData.status)) {
+        event.status = updateData.status;
+      }
     }
-    else if (["ONGOING", "COMPLETED", "CLOSED"].includes(event.status)) {
+    else if (["ONGOING", "COMPLETED", "CLOSED", "CANCELLED"].includes(event.status)) {
       if (!updateData.status) {
         return res.status(400).json({
           message: `Cannot edit ${event.status} events. Only status changes allowed.`

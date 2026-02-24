@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { AVAILABLE_INTERESTS } from "../constants/interests";
+import { organizerAPI } from "../services/api";
 import "../styles/Profile.css";
 
 function OrganizerProfile() {
@@ -20,6 +21,7 @@ function OrganizerProfile() {
   });
 
   const [passwordResetStatus, setPasswordResetStatus] = useState(null);
+  const [resetReason, setResetReason] = useState("");
 
   // Fetch organizer data on mount
   useEffect(() => {
@@ -31,15 +33,11 @@ function OrganizerProfile() {
   const fetchOrganizerData = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`http://localhost:8000/api/organizers/${user._id}`, {
-        credentials: "include"
-      });
+      const { ok, data } = await organizerAPI.getById(user._id);
 
-      if (!res.ok) {
+      if (!ok) {
         throw new Error("Failed to fetch organizer data");
       }
-
-      const data = await res.json();
 
       if (data.success && data.organizer) {
         setPasswordResetStatus(data.organizer.passwordResetStatus);
@@ -73,16 +71,9 @@ function OrganizerProfile() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`http://localhost:8000/api/organizers/${user._id}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
-      });
+      const { ok, data } = await organizerAPI.update(user._id, formData);
 
-      const data = await res.json();
-
-      if (res.ok && data.organizer) {
+      if (ok && data.organizer) {
         await refreshUser();
         setFormData({
           organizerName: data.organizer.organizerName || "",
@@ -109,26 +100,28 @@ function OrganizerProfile() {
     setError("");
     setSuccess("");
 
+    if (!resetReason.trim()) {
+      setError("Please provide a reason for the password reset request");
+      window.scrollTo(0, 0);
+      return;
+    }
+
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/organizers/${user._id}/request-password-reset`,
-        {
-          method: "POST",
-          credentials: "include"
-        }
-      );
+      const { ok, data } = await organizerAPI.requestPasswordReset(user._id, { reason: resetReason.trim() });
 
-      const data = await res.json();
-
-      if (res.ok) {
+      if (ok) {
         setPasswordResetStatus("PENDING");
+        setResetReason("");
         setSuccess("Request sent to admin for review");
+        window.scrollTo(0, 0);
         setTimeout(() => setSuccess(""), 4000);
       } else {
         setError(data.message || "Failed to send request");
+        window.scrollTo(0, 0);
       }
     } catch (err) {
       setError("Error: " + err.message);
+      window.scrollTo(0, 0);
     }
   };
 
@@ -139,7 +132,7 @@ function OrganizerProfile() {
   return (
     <div className="profile-container">
       <div className="profile-card">
-        <h1>Club Profile</h1>
+        <h1>Organizer Profile</h1>
 
         {error && <div className="profile-error">{error}</div>}
         {success && <div className="profile-success">{success}</div>}
@@ -199,9 +192,17 @@ function OrganizerProfile() {
                 type="tel"
                 name="contactNumber"
                 value={formData.contactNumber}
-                onChange={handleChange}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setFormData({ ...formData, contactNumber: val });
+                }}
+                maxLength={10}
+                pattern="[0-9]{10}"
                 required
               />
+              {formData.contactNumber && formData.contactNumber.length !== 10 && (
+                <small style={{ color: '#dc3545', fontSize: '12px' }}>Must be exactly 10 digits</small>
+              )}
             </div>
 
             <div className="form-group">
@@ -267,6 +268,26 @@ function OrganizerProfile() {
               Edit Profile
             </button>
 
+            {passwordResetStatus !== "PENDING" && (
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px', fontSize: '14px' }}>Reason for Password Reset</label>
+                <textarea
+                  value={resetReason}
+                  onChange={(e) => setResetReason(e.target.value)}
+                  placeholder="Please explain why you need a password reset..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '14px',
+                    resize: 'vertical',
+                    marginBottom: '10px'
+                  }}
+                />
+              </div>
+            )}
             <button
               onClick={handleRequestPasswordReset}
               disabled={passwordResetStatus === "PENDING"}

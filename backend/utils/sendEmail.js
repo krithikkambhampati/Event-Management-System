@@ -7,9 +7,9 @@ export const sendTicketEmail = async ({ to, participantName, eventName, ticketId
     return;
   }
 
-  let qrDataUrl = "";
+  let qrBuffer = null;
   try {
-    qrDataUrl = await QRCode.toDataURL(ticketId, {
+    qrBuffer = await QRCode.toBuffer(ticketId, {
       width: 200,
       margin: 2,
       color: { dark: "#3A2F27", light: "#FFFFFF" }
@@ -17,6 +17,8 @@ export const sendTicketEmail = async ({ to, participantName, eventName, ticketId
   } catch (err) {
     console.error("Failed to generate QR code:", err.message);
   }
+
+  const qrCid = "ticketqr@felicity";
 
   const transporter = nodemailer.createTransport({
     service: "gmail",
@@ -35,10 +37,10 @@ export const sendTicketEmail = async ({ to, participantName, eventName, ticketId
     ? `Your payment has been approved and your order for <strong>${eventName}</strong> is confirmed!`
     : `You have been successfully registered for <strong>${eventName}</strong>!`;
 
-  const qrSection = qrDataUrl ? `
+  const qrSection = qrBuffer ? `
     <div style="text-align: center; margin: 20px 0;">
       <p style="font-size: 12px; color: #8B7968; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 12px;">Scan QR for Verification</p>
-      <img src="${qrDataUrl}" alt="Ticket QR Code" style="width: 180px; height: 180px; border: 2px dashed #D9C9B8; border-radius: 8px; padding: 8px;" />
+      <img src="cid:${qrCid}" alt="Ticket QR Code" width="180" height="180" style="width: 180px; height: 180px; border: 2px dashed #D9C9B8; border-radius: 8px; padding: 8px; display: block; margin: 0 auto;" />
     </div>
   ` : "";
 
@@ -53,6 +55,13 @@ export const sendTicketEmail = async ({ to, participantName, eventName, ticketId
     from: `"Event Manager" <${process.env.EMAIL_USER}>`,
     to,
     subject: emailSubject,
+    attachments: qrBuffer ? [
+      {
+        filename: "ticket-qr.png",
+        content: qrBuffer,
+        cid: qrCid
+      }
+    ] : [],
     html: `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FAF8F4; border: 1px solid #D9C9B8; border-radius: 12px; overflow: hidden;">
         

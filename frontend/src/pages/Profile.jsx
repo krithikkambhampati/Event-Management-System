@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { AVAILABLE_INTERESTS } from "../constants/interests";
+import { organizerAPI, participantAPI } from "../services/api";
 import "../styles/Profile.css";
 
 function Profile() {
-  const { user, setUser, refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,12 +44,7 @@ function Profile() {
   const fetchFollowedOrganizers = async () => {
     setLoadingOrganizers(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/organizers/followed/my-organizers`, {
-        method: "GET",
-        credentials: "include"
-      });
-
-      const data = await res.json();
+      const { data } = await organizerAPI.getFollowed();
       setFollowedOrganizers(data.followedOrganizers || []);
     } catch (err) {
       console.error("Error fetching followed organizers:", err);
@@ -81,16 +77,9 @@ function Profile() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`http://localhost:8000/api/participants/${user._id}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
-      });
+      const { ok, data } = await participantAPI.update(user._id, formData);
 
-      const data = await res.json();
-
-      if (res.ok) {
+      if (ok) {
         await refreshUser();
         setIsEditing(false);
         setSuccess("Profile updated successfully!");
@@ -124,19 +113,12 @@ function Profile() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`http://localhost:8000/api/participants/${user._id}/change-password`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          oldPassword: passwordData.oldPassword,
-          newPassword: passwordData.newPassword
-        })
+      const { ok, data } = await participantAPI.changePassword(user._id, {
+        oldPassword: passwordData.oldPassword,
+        newPassword: passwordData.newPassword
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
+      if (ok) {
         setSuccess("Password changed successfully!");
         setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" });
         setIsChangingPassword(false);
@@ -158,14 +140,9 @@ function Profile() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`http://localhost:8000/api/organizers/${organizerId}/unfollow`, {
-        method: "POST",
-        credentials: "include"
-      });
+      const { ok, data } = await organizerAPI.unfollow(organizerId);
 
-      const data = await res.json();
-
-      if (res.ok) {
+      if (ok) {
         setSuccess("Organizer unfollowed!");
         await refreshUser();
         setFollowedOrganizers(followedOrganizers.filter(org => org._id !== organizerId));
@@ -229,10 +206,19 @@ function Profile() {
               <label>Contact Number</label>
               <input
                 name="contactNumber"
+                type="tel"
                 value={formData.contactNumber}
-                onChange={handleChange}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setFormData({ ...formData, contactNumber: val });
+                }}
+                maxLength={10}
+                pattern="[0-9]{10}"
                 required
               />
+              {formData.contactNumber && formData.contactNumber.length !== 10 && (
+                <small style={{ color: '#dc3545', fontSize: '12px' }}>Must be exactly 10 digits</small>
+              )}
             </div>
 
             <div className="form-group">
@@ -311,6 +297,42 @@ function Profile() {
 
             <hr style={{ margin: "20px 0", opacity: 0.3 }} />
 
+            <h3>Followed Organizers</h3>
+            {loadingOrganizers ? (
+              <p>Loading organizers...</p>
+            ) : followedOrganizers.length === 0 ? (
+              <p className="empty-state-text">No followed organizers yet.</p>
+            ) : (
+              <div className="followed-organizers-list">
+                {followedOrganizers.map(org => (
+                  <div key={org._id} className="organizer-item">
+                    <div className="organizer-info">
+                      <h4>{org.name || org.organizerName || "Organizer"}</h4>
+                    </div>
+                    <button
+                      onClick={() => handleUnfollowOrganizer(org._id)}
+                      disabled={isLoading}
+                      className="unfollow-button"
+                    >
+                      Unfollow
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setIsEditing(true);
+                window.scrollTo(0, 0);
+              }}
+              className="edit-button"
+            >
+              Edit Profile
+            </button>
+
+            <hr style={{ margin: "20px 0", opacity: 0.3 }} />
+
             {isChangingPassword ? (
               <form onSubmit={handlePasswordChange}>
                 <h3>Change Password</h3>
@@ -356,47 +378,24 @@ function Profile() {
                   setIsChangingPassword(true);
                   window.scrollTo(0, 0);
                 }}
-                className="edit-button"
+                style={{
+                  background: 'none',
+                  border: '1px dashed var(--border-dark)',
+                  color: 'var(--text-secondary)',
+                  padding: '8px 20px',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--font-size-sm)',
+                  fontWeight: 600,
+                  alignSelf: 'flex-start',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => { e.target.style.borderColor = 'var(--accent)'; e.target.style.color = 'var(--accent)'; }}
+                onMouseOut={e => { e.target.style.borderColor = 'var(--border-dark)'; e.target.style.color = 'var(--text-secondary)'; }}
               >
-                Change Password
+                🔑 Change Password
               </button>
             )}
-
-            <hr style={{ margin: "20px 0", opacity: 0.3 }} />
-
-            <h3>Followed Organizers</h3>
-            {loadingOrganizers ? (
-              <p>Loading organizers...</p>
-            ) : followedOrganizers.length === 0 ? (
-              <p className="empty-state-text">No followed organizers yet.</p>
-            ) : (
-              <div className="followed-organizers-list">
-                {followedOrganizers.map(org => (
-                  <div key={org._id} className="organizer-item">
-                    <div className="organizer-info">
-                      <h4>{org.name || org.organizerName || "Organizer"}</h4>
-                    </div>
-                    <button
-                      onClick={() => handleUnfollowOrganizer(org._id)}
-                      disabled={isLoading}
-                      className="unfollow-button"
-                    >
-                      Unfollow
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <button
-              onClick={() => {
-                setIsEditing(true);
-                window.scrollTo(0, 0);
-              }}
-              className="edit-button"
-            >
-              Edit Profile
-            </button>
           </div>
         )}
       </div>

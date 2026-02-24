@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { eventAPI } from "../services/api";
 import '../styles/Event.css';
 
 function OrganizerOngoingEvents() {
@@ -17,12 +18,9 @@ function OrganizerOngoingEvents() {
     const fetchOngoingEvents = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`http://localhost:8000/api/events/organizer/${user._id}`, {
-                credentials: "include"
-            });
-            const data = await res.json();
+            const { ok, data } = await eventAPI.getOrganizerEvents(user._id);
 
-            if (!res.ok) {
+            if (!ok) {
                 throw new Error(data.message || "Failed to fetch events");
             }
 

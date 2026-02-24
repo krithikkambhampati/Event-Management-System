@@ -1,18 +1,19 @@
-import { useState, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import ReCAPTCHA from "react-google-recaptcha";
+import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
+import { participantAPI, authAPI } from "../services/api";
 import '../styles/Auth.css';
-
-const RECAPTCHA_SITE_KEY = "6LcTYHMsAAAAAG1zZLhI8cBmrBew2GtGP18AeuS8";
 
 function Signup() {
   const navigate = useNavigate();
   const { setUser } = useAuth();
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const recaptchaRef = useRef(null);
+  const cachedToken = useRef(null);
+  const tokenTimestamp = useRef(null);
 
   const [formData, setFormData] = useState({
     fName: "",
@@ -24,6 +25,18 @@ function Signup() {
     participantType: "IIIT"
   });
 
+  // Pre-warm reCAPTCHA token on mount
+  useEffect(() => {
+    if (!executeRecaptcha) return;
+    const warm = async () => {
+      try {
+        cachedToken.current = await executeRecaptcha("signup");
+        tokenTimestamp.current = Date.now();
+      } catch { /* silent */ }
+    };
+    warm();
+  }, [executeRecaptcha]);
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -31,60 +44,72 @@ function Signup() {
     });
   };
 
-  const handleSignup = async (e) => {
+  const handleSignup = useCallback(async (e) => {
     e.preventDefault();
     setError("");
 
-    // Get reCAPTCHA token
-    const captchaToken = recaptchaRef.current?.getValue();
-    if (!captchaToken) {
-      setError("Please complete the CAPTCHA verification");
+    if (!executeRecaptcha) {
+      setError("reCAPTCHA not ready. Please wait and try again.");
+      return;
+    }
+
+    if (formData.contactNumber.length !== 10) {
+      setError("Contact number must be exactly 10 digits");
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
       return;
     }
 
     setIsLoading(true);
 
     try {
+      // Use cached token if < 90s old, else fetch fresh
+      let captchaToken = "";
+      try {
+        const age = tokenTimestamp.current ? Date.now() - tokenTimestamp.current : Infinity;
+        if (cachedToken.current && age < 90000) {
+          captchaToken = cachedToken.current;
+          cachedToken.current = null;
+        } else {
+          captchaToken = await executeRecaptcha("signup");
+        }
+      } catch (captchaErr) {
+        console.warn("[reCAPTCHA] Token generation failed, proceeding without:", captchaErr.message);
+      }
+
       // Step 1: Signup with captcha token
-      const signupRes = await fetch("http://localhost:8000/api/participants/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, captchaToken })
-      });
+      const { ok: signupOk, data: signupData } = await participantAPI.signup({ ...formData, captchaToken });
 
-      const signupData = await signupRes.json();
-
-      if (!signupRes.ok) {
+      if (!signupOk) {
         setError(signupData.message || "Signup failed");
-        recaptchaRef.current?.reset();
         setIsLoading(false);
         return;
       }
 
-      // Step 2: Auto-login (captcha already verified during signup, skip for login)
-      const loginRes = await fetch("http://localhost:8000/api/auth/login", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email, password: formData.password, captchaToken })
-      });
+      // Step 2: Auto-login with a fresh token
+      let loginToken = "";
+      try {
+        loginToken = await executeRecaptcha("login");
+      } catch (captchaErr) {
+        console.warn("[reCAPTCHA] Login token failed, proceeding without:", captchaErr.message);
+      }
+      const { ok: loginOk, data: loginData } = await authAPI.login({ email: formData.email, password: formData.password, captchaToken: loginToken });
 
-      const loginData = await loginRes.json();
-
-      if (loginRes.ok && loginData.user) {
+      if (loginOk && loginData.user) {
         setUser(loginData.user);
         navigate("/dashboard");
       } else {
         setError(loginData.message || "Auto-login failed");
-        recaptchaRef.current?.reset();
       }
     } catch (err) {
       setError("Error: " + err.message);
-      recaptchaRef.current?.reset();
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [executeRecaptcha, formData, navigate, setUser]);
 
   return (
     <div className="auth-container">
@@ -161,11 +186,20 @@ function Signup() {
             <label>Contact Number</label>
             <input
               name="contactNumber"
-              placeholder="Enter your contact number"
+              type="tel"
+              placeholder="Enter 10-digit contact number"
               value={formData.contactNumber}
-              onChange={handleChange}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setFormData({ ...formData, contactNumber: val });
+              }}
+              maxLength={10}
+              pattern="[0-9]{10}"
               required
             />
+            {formData.contactNumber && formData.contactNumber.length !== 10 && (
+              <small style={{ color: '#dc3545', fontSize: '12px' }}>Phone number must be exactly 10 digits</small>
+            )}
           </div>
 
           <div className="form-group">
@@ -186,9 +220,10 @@ function Signup() {
               <input
                 name="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Enter a strong password"
+                placeholder="Enter a strong password (min 6 characters)"
                 value={formData.password}
                 onChange={handleChange}
+                minLength={6}
                 required
               />
               <button
@@ -200,13 +235,6 @@ function Signup() {
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
-            <ReCAPTCHA
-              ref={recaptchaRef}
-              sitekey={RECAPTCHA_SITE_KEY}
-            />
           </div>
 
           <button type="submit" className="auth-button" disabled={isLoading}>

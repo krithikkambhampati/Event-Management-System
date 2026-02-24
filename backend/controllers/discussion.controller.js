@@ -1,6 +1,7 @@
 import { DiscussionMessage } from "../models/discussion.model.js";
 import { Registration } from "../models/registration.model.js";
 import { Event } from "../models/event.model.js";
+import { Notification } from "../models/notification.model.js";
 
 export const handleGetMessages = async (req, res) => {
     try {
@@ -16,7 +17,6 @@ export const handleGetMessages = async (req, res) => {
     }
 };
 
-// Post a new message
 export const handlePostMessage = async (req, res) => {
     try {
         const { eventId } = req.params;
@@ -74,13 +74,35 @@ export const handlePostMessage = async (req, res) => {
             parentMessage: parentMessage || null
         });
 
+        if (senderRole === "Organizer" && content.includes("@everyone")) {
+            try {
+                const registrations = await Registration.find({
+                    event: eventId,
+                    participationStatus: { $in: ["Registered", "Completed"] },
+                }).select("participant").lean();
+
+                const participantIds = registrations.map((r) => r.participant);
+                if (participantIds.length > 0) {
+                    const notifications = participantIds.map((pid) => ({
+                        recipient: pid,
+                        type: "FORUM_EVERYONE",
+                        title: `@everyone from ${senderName}`,
+                        message: content.trim().substring(0, 200),
+                        relatedEvent: eventId,
+                    }));
+                    await Notification.insertMany(notifications);
+                }
+            } catch (notifErr) {
+                console.error("Failed to create @everyone notifications:", notifErr.message);
+            }
+        }
+
         res.status(201).json({ message: "Message posted", data: message });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// Delete a message (organizer only - moderation)
 export const handleDeleteMessage = async (req, res) => {
     try {
         const { messageId } = req.params;
@@ -109,7 +131,7 @@ export const handleDeleteMessage = async (req, res) => {
     }
 };
 
-// Pin/unpin a message (organizer only)
+
 export const handleTogglePin = async (req, res) => {
     try {
         const { messageId } = req.params;
@@ -134,7 +156,7 @@ export const handleTogglePin = async (req, res) => {
     }
 };
 
-// React to a message
+
 export const handleReactToMessage = async (req, res) => {
     try {
         const { messageId } = req.params;

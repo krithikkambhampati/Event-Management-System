@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
+import { registrationAPI } from "../services/api";
 import '../styles/ParticipationHistory.css';
 
 function ParticipationHistory() {
@@ -11,9 +12,7 @@ function ParticipationHistory() {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [activeTab, setActiveTab] = useState("all");
-  const [cancellingId, setCancellingId] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
 
   const fetchRegistrations = async () => {
@@ -21,12 +20,8 @@ function ParticipationHistory() {
     setError("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/registrations/participant/my-registrations`,
-        { method: "GET", credentials: "include" }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to fetch registrations");
+      const { ok, data } = await registrationAPI.getMyRegistrations();
+      if (!ok) throw new Error(data.message || "Failed to fetch registrations");
       setRegistrations(data.registrations || []);
     } catch (err) {
       setError(err.message || "Failed to fetch registrations");
@@ -38,35 +33,6 @@ function ParticipationHistory() {
   useEffect(() => {
     if (user?.role === "PARTICIPANT") fetchRegistrations();
   }, [user]);
-
-  const handleCancelRegistration = async (registrationId) => {
-    if (!window.confirm("Are you sure you want to cancel this registration?")) return;
-
-    setCancellingId(registrationId);
-    setError("");
-    setSuccess("");
-
-    try {
-      const res = await fetch(
-        `http://localhost:8000/api/registrations/${registrationId}/cancel`,
-        { method: "POST", credentials: "include" }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to cancel registration");
-
-      // Update local state
-      setRegistrations(prev =>
-        prev.map(r => r._id === registrationId ? { ...r, participationStatus: "Cancelled" } : r)
-      );
-      setSuccess("Registration cancelled successfully");
-      setTimeout(() => setSuccess(""), 5000);
-    } catch (err) {
-      setError(err.message || "Failed to cancel registration");
-      setTimeout(() => setError(""), 5000);
-    } finally {
-      setCancellingId(null);
-    }
-  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -140,7 +106,6 @@ function ParticipationHistory() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
-      {success && <div className="alert alert-success">{success}</div>}
 
       <div className="participation-stats">
         <div className="stat-item">
@@ -302,15 +267,6 @@ function ParticipationHistory() {
                   >
                     View Event Details
                   </button>
-                  {(registration.participationStatus === "Registered" || registration.participationStatus === "Pending") && (
-                    <button
-                      className="participation-button danger"
-                      onClick={() => handleCancelRegistration(registration._id)}
-                      disabled={cancellingId === registration._id}
-                    >
-                      {cancellingId === registration._id ? "Cancelling..." : registration.participationStatus === "Pending" ? "Cancel Order" : "Cancel Registration"}
-                    </button>
-                  )}
                 </div>
               </div>
             );
@@ -323,7 +279,7 @@ function ParticipationHistory() {
         <div className="interest-modal-overlay" onClick={() => setSelectedTicket(null)}>
           <div className="interest-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="interest-modal-header" style={{ textAlign: 'center' }}>
-              <h2>🎟️ Ticket Details</h2>
+              <h2>Ticket Details</h2>
             </div>
             <div className="interest-modal-content">
               <div style={{ textAlign: 'center', marginBottom: '16px' }}>

@@ -5,7 +5,9 @@ import {
   handleGetEventRegistrations,
   handleCancelRegistration,
   handleApprovePayment,
-  handleRejectPayment
+  handleRejectPayment,
+  handleScanQR,
+  handleManualAttendance
 } from "../controllers/registration.controller.js";
 import { verifyToken, requireParticipant, requireOrganizer } from "../middleware/auth.middleware.js";
 
@@ -36,7 +38,7 @@ router.get(
 router.post(
   "/:registrationId/cancel",
   verifyToken,
-  requireParticipant,
+  requireOrganizer,
   handleCancelRegistration
 );
 
@@ -53,6 +55,21 @@ router.post(
   verifyToken,
   requireOrganizer,
   handleRejectPayment
+);
+
+// Attendance tracking (organizer only)
+router.post(
+  "/:eventId/scan",
+  verifyToken,
+  requireOrganizer,
+  handleScanQR
+);
+
+router.post(
+  "/:registrationId/manual-attendance",
+  verifyToken,
+  requireOrganizer,
+  handleManualAttendance
 );
 
 export default router;

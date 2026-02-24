@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AVAILABLE_INTERESTS } from "../constants/interests";
+import { adminAPI } from "../services/api";
 import '../styles/CreateEvent.css';
 
 function CreateOrganizer() {
@@ -28,19 +29,16 @@ function CreateOrganizer() {
     setLoading(true);
     setError("");
 
-    const res = await fetch(
-      "http://localhost:8000/api/admin/create-organizer",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(formData)
-      }
-    );
+    if (formData.contactNumber && formData.contactNumber.replace(/\D/g, "").length !== 10) {
+      setError("Contact number must be exactly 10 digits");
+      setLoading(false);
+      window.scrollTo(0, 0);
+      return;
+    }
 
-    const data = await res.json();
+    const { ok, data } = await adminAPI.createOrganizer(formData);
 
-    if (res.ok) {
+    if (ok) {
       setCredentials(data.credentials);
       setFormData({
         organizerName: "",
@@ -49,6 +47,7 @@ function CreateOrganizer() {
         contactEmail: "",
         contactNumber: ""
       });
+      window.scrollTo(0, 0);
     } else {
       setError(data.message || "Failed to create organizer");
     }
@@ -164,11 +163,19 @@ function CreateOrganizer() {
             <input
               type="tel"
               name="contactNumber"
-              placeholder="+91 1234567890"
-              onChange={handleChange}
+              placeholder="Enter 10-digit number"
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setFormData({ ...formData, contactNumber: val });
+              }}
               value={formData.contactNumber}
+              maxLength={10}
+              pattern="[0-9]{10}"
               required
             />
+            {formData.contactNumber && formData.contactNumber.replace(/\D/g, "").length !== 10 && (
+              <small style={{ color: '#dc3545', fontSize: '12px' }}>Must be exactly 10 digits</small>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>

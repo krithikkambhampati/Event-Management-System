@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
+import { eventAPI } from "../services/api";
 import '../styles/Dashboard.css';
 
 function OrganizerDashboard() {
@@ -18,17 +19,9 @@ function OrganizerDashboard() {
     setError("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/events/organizer/${user._id}`,
-        {
-          method: "GET",
-          credentials: "include"
-        }
-      );
+      const { ok, data } = await eventAPI.getOrganizerEvents(user._id);
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to fetch events");
       }
 
@@ -52,17 +45,9 @@ function OrganizerDashboard() {
     setSuccess("");
 
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/events/${eventId}/publish`,
-        {
-          method: "POST",
-          credentials: "include"
-        }
-      );
+      const { ok, data } = await eventAPI.publish(eventId);
 
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!ok) {
         throw new Error(data.message || "Failed to publish event");
       }
 

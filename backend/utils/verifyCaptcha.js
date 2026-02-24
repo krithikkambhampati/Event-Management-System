@@ -1,4 +1,3 @@
-// Verify reCAPTCHA token with Google's API
 export const verifyCaptcha = async (captchaToken) => {
     if (!captchaToken) {
         return { success: false, message: "CAPTCHA verification required" };
@@ -6,10 +5,11 @@ export const verifyCaptcha = async (captchaToken) => {
 
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
     if (!secretKey) {
-        // If no secret key configured, skip verification (dev mode)
-        console.warn("RECAPTCHA_SECRET_KEY not set — skipping CAPTCHA verification");
+        console.warn("[reCAPTCHA] RECAPTCHA_SECRET_KEY not set — skipping verification");
         return { success: true };
     }
+
+    const threshold = parseFloat(process.env.RECAPTCHA_SCORE_THRESHOLD ?? "0.5");
 
     try {
         const response = await fetch(
@@ -19,13 +19,19 @@ export const verifyCaptcha = async (captchaToken) => {
 
         const data = await response.json();
 
-        if (data.success) {
-            return { success: true };
-        } else {
+        console.log(`[reCAPTCHA] success=${data.success} | score=${data.score ?? "N/A"} | action=${data.action ?? "N/A"} | threshold=${threshold} | errors=${JSON.stringify(data["error-codes"] ?? [])}`);
+
+        if (!data.success) {
             return { success: false, message: "CAPTCHA verification failed. Please try again." };
         }
+
+        if (data.score !== undefined && data.score < threshold) {
+            return { success: false, message: `Bot-like behaviour detected (score: ${data.score.toFixed(2)}). Please try again.` };
+        }
+
+        return { success: true, score: data.score };
     } catch (error) {
-        console.error("CAPTCHA verification error:", error.message);
-        return { success: false, message: "CAPTCHA verification service unavailable" };
+        console.warn("[reCAPTCHA] Service unreachable — skipping:", error.message);
+        return { success: true };
     }
 };
